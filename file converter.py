@@ -1,6 +1,6 @@
 import ffmpeg
 import os
-simultaneosconvert=3
+simultaneosconvert=2
 fileExtensions=["webm","flv","vob","ogg","ogv","drc","gifv","mng","avi","mov","qt","wmv","yuv","rm","rmvb","asf","amv","mp4","m4v","mp\*","m\?v","svi","3gp","flv","f4v"]
 thisdir = os.getcwd()
 convertTo={"formato":"mkv","filterParameters":
@@ -19,19 +19,21 @@ for r, d, f in os.walk(thisdir):
 				output+="convertido."+convertTo["formato"]
 				output=os.path.join(r, output)
 				arquivosAConverter.append({"input":input,"output":output})
-for arquivos in arquivosAConverter :
-	print("entrada= "+arquivos["input"])
-	print("saida= "+arquivos["output"])
+#for arquivos in arquivosAConverter :
+#	print("entrada= "+arquivos["input"])
+#	print("saida= "+arquivos["output"])
 processes=[]
 for arquivos in arquivosAConverter :
 	if len(processes)<=simultaneosconvert:
-		processes.append(ffmpeg.input(arquivos["input"]).\
+		processes.append(ffmpeg.input(arquivos["input"],vcodec="h264_cuvid").\
 		filter('scale',size=convertTo["filterParameters"]["scale"]). \
-		output(arquivos["output"],vcodec=convertTo["outputParameters"]["vcodec"]
+		output(arquivos["output"]#,vcodec=convertTo["outputParameters"]["vcodec"]
 			   ,crf=convertTo["outputParameters"]["crf"]
 			   ,preset=convertTo["outputParameters"]["preset"]
-			   ,).run_async(cmd="ffmpeg",quiet=True)
+			    ,hwaccel="cuvid",vcodec=["h264_nvenc"] #nvidia accelerated
+			   ,).run()#_async(cmd="ffmpeg",quiet=True)
 		)
+		print(len(processes))
 	else:
 		for process in processes :
 			process.wait()
