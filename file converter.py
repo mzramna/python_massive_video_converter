@@ -1,11 +1,11 @@
 import ffmpeg
 import os
-simultaneosconvert=1
+simultaneosconvert=2
 fileExtensions=["webm","flv","vob","ogg","ogv","drc","gifv","mng","avi","mov","qt","wmv","yuv","rm","rmvb","asf","amv","mp4","m4v","mp\*","m\?v","svi","3gp","flv","f4v"]
 thisdir = os.getcwd()
 convertTo={"formato":"mkv","filterParameters":
 	{"scale":"hd480",},
-		   "outputParameters":{"vcodec":"libx264","crf":"22","preset":"slow"}}
+		   "outputParameters":{"format":"matroska","vcodec":"libx264","crf":"30","preset":"slow","bitrate":"1000k","fps":"30"}}
 arquivosAConverter=[]
 flagConversion="convertido"
 for r, d, f in os.walk(thisdir):
@@ -28,10 +28,13 @@ processes=[]
 for arquivos in arquivosAConverter :
 
 	processes.append(ffmpeg.input(arquivos["input"],vcodec="h264_cuvid").\
-	filter('scale',size=convertTo["filterParameters"]["scale"]). \
+	filter('scale',size=convertTo["filterParameters"]["scale"]).
 	output(arquivos["output"]
 		   ,crf=convertTo["outputParameters"]["crf"]
 		   ,preset=convertTo["outputParameters"]["preset"]
+		   #,video_bitrate=convertTo["outputParameters"]["bitrate"]
+		   #,acodec="auto"
+		   ,format=convertTo["outputParameters"]["format"]
 			,vcodec="h264_nvenc"
 		   ,)
 	)
