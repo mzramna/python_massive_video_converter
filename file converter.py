@@ -2,9 +2,10 @@ import ffmpeg
 import os
 simultaneosconvert=3
 fileExtensions=["webm","flv","vob","ogg","ogv","drc","gifv","mng","avi","mov","qt","wmv","yuv","rm","rmvb","asf","amv","mp4","m4v","mp\*","m\?v","svi","3gp","flv","f4v"]
-thisdir = input("diretorio de execucao")
+#thisdir = os.path.normpath(input("diretorio de execucao"))
+thisdir=os.getcwd()
 convertTo={"formato":"mkv","filterParameters":
-	{"scale":"hd480",},
+	{"scale":"hd480","fps":24},
 		   "outputParameters":{"vcodec":"h264_omx","crf":"22","preset":"slow"}}
 arquivosAConverter=[]
 for r, d, f in os.walk(thisdir):
@@ -27,6 +28,7 @@ for arquivos in arquivosAConverter :
 	#if len(processes)<=simultaneosconvert:
 	processes.append( ffmpeg.input(arquivos["input"]).
 	filter('scale',size=convertTo["filterParameters"]["scale"]).
+	filter('fps', fps=convertTo["filterParameters"]["fps"], round='up').
 	output(arquivos["output"],vcodec=convertTo["outputParameters"]["vcodec"]
 		   ,crf=convertTo["outputParameters"]["crf"]
 		   ,preset=convertTo["outputParameters"]["preset"]
