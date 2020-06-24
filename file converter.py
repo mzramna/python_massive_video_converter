@@ -5,7 +5,7 @@ fileExtensions=["webm","flv","vob","ogg","ogv","drc","gifv","mng","avi","mov","q
 thisdir = input("diretorio de execucao")
 convertTo={"formato":"mkv","filterParameters":
 	{"scale":"hd480",},
-		   "outputParameters":{"c:v":"h264_omx","crf":"22","preset":"slow"}}
+		   "outputParameters":{"vcodec":"h264_omx","crf":"22","preset":"slow"}}
 arquivosAConverter=[]
 for r, d, f in os.walk(thisdir):
 	for file in f:
