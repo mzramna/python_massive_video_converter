@@ -2,10 +2,10 @@ import ffmpeg
 import os
 simultaneosconvert=3
 fileExtensions=["webm","flv","vob","ogg","ogv","drc","gifv","mng","avi","mov","qt","wmv","yuv","rm","rmvb","asf","amv","mp4","m4v","mp\*","m\?v","svi","3gp","flv","f4v"]
-thisdir = os.getcwd()
+thisdir = input("diretorio de execucao")
 convertTo={"formato":"mkv","filterParameters":
 	{"scale":"hd480",},
-		   "outputParameters":{"vcodec":"h264","crf":"22","preset":"slow"}}
+		   "outputParameters":{"c:v":"h264_omx","crf":"22","preset":"slow"}}
 arquivosAConverter=[]
 for r, d, f in os.walk(thisdir):
 	for file in f:
