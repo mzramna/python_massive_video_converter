@@ -32,7 +32,7 @@ def compare_resolution(arquivo,width:int,height:int):
 	else:
 		return False
 
-def convert_video(arquivo,extension_convert:str="mkv",resize=False,resolution:int=480,remove=False,codec:str="h264_omx",fps:int=24,crf:int=20,preset:str="slow",resize_log='./resize.log'):
+def convert_video(arquivo,extension_convert:str="mkv",resize=False,resolution:int=480,remove=False,codec:str="h264_omx",fps:int=24,crf:int=20,preset:str="slow",resize_log='./resize.log',working_log="./working.log"):
     fileExtensions=["webm","flv","vob","ogg","ogv","drc","gifv","mng","avi","mov","qt","wmv","yuv","rm","rmvb","asf","amv","mp4","m4v","mp\*","m\?v","svi","3gp","flv","f4v"]
     
 	file_name_no_extension=os.path.splitext(arquivo.name)[0]
@@ -42,6 +42,10 @@ def convert_video(arquivo,extension_convert:str="mkv",resize=False,resolution:in
 	new_file_name=str(relative_dir)+str(file_name_no_extension)+"."+extension_convert
 	if ( extension =="."+extension_convert and not resize ) or ( extension not in fileExtensions ):
 		return 0
+    else:
+        log_file=open(working_log,"a")
+		log_file.write(new_file_name+"\n")
+		log_file.close()
 	
 	command=["ffmpeg","-i",str(arquivo.path), "-acodec", "copy" ]
 	copy_command=["-vcodec","copy"]
@@ -91,6 +95,17 @@ def convert_video(arquivo,extension_convert:str="mkv",resize=False,resolution:in
 	#print(command)
 	result = subprocess.run(command, stdout=subprocess.PIPE)
 	if resize:
+        log_file=open(working_log,"a")
+        tmp_log_file=open(str(working_log)+".tmp","a")
+        for line in log_file:
+            if line == new_file_name+"\n":
+                pass
+            else:
+                tmp_log_file.write(line)
+        log_file.close()
+        tmp_log_file.close()
+        os.remove(working_log)
+        os.rename(str(working_log)+".tmp",working_log)
 		log_file=open(resize_log,"a")
 		log_file.write(new_file_name+"\n")
 		log_file.close()
