@@ -53,7 +53,7 @@ def create_command(arquivo,extension_convert:str="mkv",resolution:int=480,codec:
         if not current_dir:
             new_file_name=str(relative_dir)+str(file_name_no_extension)
         else:
-            new_file_name=".\\"+str(file_name_no_extension)
+            new_file_name=str(os.getcwd())+"\\"+str(file_name_no_extension)
         ffmpeg_executable="ffmpeg.exe"
         if codec == "h264_omx":
             codec="h264"
@@ -62,7 +62,7 @@ def create_command(arquivo,extension_convert:str="mkv",resolution:int=480,codec:
         if not current_dir:
             new_file_name=str(relative_dir)+str(file_name_no_extension)
         else:
-            new_file_name="./"+str(file_name_no_extension)
+            new_file_name=str(os.getcwd())+"/"+str(file_name_no_extension)
         ffmpeg_executable="ffmpeg"
         if "arm" not in str(platform.machine()) and codec == "h264_omx":
             codec = "h264"
@@ -83,14 +83,14 @@ def create_command(arquivo,extension_convert:str="mkv",resolution:int=480,codec:
     change_fps=False
     if resize :
         try:
-            log_file = open(resize_log)
+            log_file = open(resized_log)
             converted=False
             for line in log_file.readlines():
                 if new_file_name in line:
                     converted=True
                     break
             log_file.close()
-            log_file = open(resized_log)
+            log_file = open(resize_log)
             converted=False
             for line in log_file.readlines():
                 if arquivo.path in line:
@@ -146,8 +146,19 @@ def create_command(arquivo,extension_convert:str="mkv",resolution:int=480,codec:
 def convert_video(arquivo,extension_convert:str="mkv",resolution:int=480,codec:str="h264_omx",fps:int=24,crf:int=20,preset:str="slow",resize=False,remove=False,process=False,current_dir=False,force_change_fps=False,resize_log='./resize.log',resized_log="./resized.log",working_log="./working.log"):
     file_name_no_extension=os.path.splitext(arquivo.name)[0]
     extension=os.path.splitext(arquivo.name)[1][1:]
-    relative_dir="\\".join(str(x) for x in arquivo.path.split("\\")[:-1])+"\\"
-    new_file_name=str(relative_dir)+str(file_name_no_extension)
+    if platform.system() == 'Windows':
+        relative_dir="\\".join(str(x) for x in arquivo.path.split("\\")[:-1])+"\\"
+        if not current_dir:
+            new_file_name=str(relative_dir)+str(file_name_no_extension)
+        else:
+            new_file_name=str(os.getcwd())+"\\"+str(file_name_no_extension)
+    elif platform.system() == 'Linux':
+        relative_dir="/".join(str(x) for x in arquivo.path.split("/")[:-1])+"/"
+        if not current_dir:
+            new_file_name=str(relative_dir)+str(file_name_no_extension)
+        else:
+            new_file_name=str(os.getcwd())+"/"+str(file_name_no_extension)
+
 
     if extension == extension_convert:
         new_file_name=new_file_name+".convert"
@@ -164,7 +175,7 @@ def convert_video(arquivo,extension_convert:str="mkv",resolution:int=480,codec:s
                 #return 0
         #log_file.close()
         
-        log_file=open(resize_log,"r")
+        log_file=open(resized_log,"r")
         for line in log_file.readlines():
             if line == new_file_name+"\n":
                 log_file.close()
@@ -172,7 +183,7 @@ def convert_video(arquivo,extension_convert:str="mkv",resolution:int=480,codec:s
                 return 0
         log_file.close()
         
-        log_file=open(resized_log,"r")
+        log_file=open(resize_log,"r")
         for line in log_file.readlines():
             if line == arquivo.path+"\n":
                 log_file.close()
@@ -267,17 +278,23 @@ def convert_multiple_video(files:[] ,multiple=2,extension_convert:str="mkv", res
         if len(processes) == 0:
             return 1
 
-pasta_teste="./test"
+pasta_teste=""./test""
 dir_data=list_content(pasta_teste)
 fps=30
 codec="h264_qsv"
+resolution=720
 #print(dir_data)
 #print(os.listdir(pasta_teste))
 #print([f for f in os.listdir(pasta_teste) if os.path.isfile(f)])
 #for file in dir_data["files"]:
-    #print(create_command(file,resize=True,codec=codec,fps=fps))
+    #print(create_command(file,resize=True,codec=codec,resolution=resolution,fps=fps))
+for pasta in dir_data["dirs"]:
+    print(pasta.path)
+    for arquivo in list_content(pasta.path)["files"]:
+        #print(arquivo)
+        convert_video(arquivo,"mkv",resize=True,codec=codec,current_dir=True,resolution=resolution,fps=fps)
 for arquivo in dir_data["files"]:
     #print(arquivo)
-    convert_video(arquivo,"mkv",resize=True,codec=codec,current_dir=True,resolution=720,fps=fps)
+    convert_video(arquivo,"mkv",resize=True,codec=codec,current_dir=True,resolution=resolution,fps=fps)
 
-#convert_multiple_video(dir_data["files"],resize=True,codec=codec,current_dir=True,fps=fps)
+#convert_multiple_video(dir_data["files"],resize=True,codec=codec,current_dir=True,resolution=resolution,fps=fps)
