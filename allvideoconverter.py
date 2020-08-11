@@ -88,41 +88,84 @@ class converter:
             return True
         return False
 
-    def create_command(self, arquivo, array=False, resize=False, current_dir=False, no_hierarchy=False,
-                       force_change_fps=False, debug=False):
+    def treat_file_name(self, arquivo, current_dir=False, no_hierarchy=False,debug=False):
         fileExtensions = ["webm", "flv", "vob", "ogg", "ogv", "drc", "gifv", "mng", "avi", "mov", "qt", "wmv", "yuv",
                           "rm", "rmvb", "asf", "amv", "mp4", "m4v", "mp\*", "m\?v", "svi", "3gp", "flv", "f4v", "mkv"]
 
         file_name_no_extension = os.path.splitext(arquivo.name)[0]
         extension = os.path.splitext(arquivo.name)[1][1:]
-        # determina a plataforma
-        new_file_name = ""
-        relative_dir = self.so_folder_separator.join(
+
+
+        if (extension or self.extension_convert) in fileExtensions:
+            convertable = True
+            relative_dir = self.so_folder_separator.join(
             str(x) for x in arquivo.path.split(self.so_folder_separator)[:-1]) + self.so_folder_separator
 
-        if not current_dir:
-            new_file_name = str(str(relative_dir) + str(file_name_no_extension))
-        elif not no_hierarchy:
-            relative_dir = relative_dir.replace(self.pasta, "")
-            new_file_name = str(
-                str(os.getcwd()) + self.so_folder_separator + str(relative_dir) + str(file_name_no_extension))
-        else:
-            relative_dir = relative_dir.replace(self.pasta, "")
-            new_file_name = str(os.getcwd()) + self.so_folder_separator + str(file_name_no_extension)
+            if not current_dir:
+                new_file_name = str(str(relative_dir) + str(file_name_no_extension))
+                folder_to_create=str(os.getcwd()) + self.so_folder_separator + str(relative_dir)
+            elif not no_hierarchy:
+                relative_dir = relative_dir.replace(self.pasta, "")
+                new_file_name = str(
+                    str(os.getcwd()) + self.so_folder_separator + str(relative_dir) + str(file_name_no_extension))
+                folder_to_create=str(relative_dir)
+            else:
+                relative_dir = relative_dir.replace(self.pasta, "")
+                new_file_name = str(os.getcwd()) + self.so_folder_separator + str(file_name_no_extension)
+                folder_to_create =""
 
-        if (extension == self.extension_convert and not resize) or (
-                (extension or self.extension_convert) not in fileExtensions):
-            return ""
-        elif extension == self.extension_convert:
-            new_file_name = new_file_name + ".convert"
-            same_extension = True
+
+            if extension == self.extension_convert:
+                new_file_name = new_file_name + ".convert"
+                same_extension = True
+            else:
+                same_extension = False
+            if debug:
+                new_file_name = str(
+                    new_file_name + "." + str(self.codec) + "." + str(self.crf) + "." + str(self.preset) + "." + str(
+                        self.codec) + "." + str(self.resolution) + "." + str(self.fps))
+            new_file_name = new_file_name + "." + self.extension_convert
+            try:
+                converted = False
+                # log_file=open(working_log,"r")
+                # for line in log_file.readlines():
+                # if line == new_file_name+"\n":
+                # log_file.close()
+                # print("working")
+                # return 0
+                # log_file.close()
+
+                log_file = open(self.resized_log)
+                for line in log_file.readlines():
+                    if new_file_name in line:
+                        converted = True
+                        break
+                log_file.close()
+                log_file = open(self.resize_log)
+                for line in log_file.readlines():
+                    if arquivo.path in line:
+                        converted = True
+                        break
+                log_file.close()
+            except:
+                converted = False
         else:
+            convertable = False
+            new_file_name = ""
+            folder_to_create = ""
             same_extension = False
-        if debug:
-            new_file_name = str(
-                new_file_name + "." + str(self.codec) + "." + str(self.crf) + "." + str(self.preset) + "." + str(
-                    self.codec) + "." + str(self.resolution) + "." + str(self.fps))
-        new_file_name = new_file_name + "." + self.extension_convert
+            converted = False
+            relative_dir = ""
+
+        return {"file_name_no_extension": file_name_no_extension, "extension": extension, "convertable": convertable,
+                "relative_dir": relative_dir, "new_file_name": new_file_name, "same_extension": same_extension,"folder_to_create":folder_to_create,"converted":converted}
+
+    def create_command(self, arquivo, array=False, resize=False, current_dir=False, no_hierarchy=False,
+                       force_change_fps=False, debug=False):
+        name_data = self.treat_file_name(arquivo, current_dir=current_dir, no_hierarchy=no_hierarchy,debug=debug)
+        if not name_data["convertable"] or (name_data["converted"] and not debug) or (name_data["extension"] == self.extension_convert and not resize):
+            return ""
+
         command = [self.ffmpeg_executable, "-y"]
         if self.hwaccel != "":
             command.append("-hwaccel")
@@ -142,24 +185,8 @@ class converter:
         change_fps = False
 
         if resize:
-            try:
-                log_file = open(self.resized_log)
-                converted = False
-                for line in log_file.readlines():
-                    if new_file_name in line:
-                        converted = True
-                        break
-                log_file.close()
-                log_file = open(self.resize_log)
-                for line in log_file.readlines():
-                    if arquivo.path in line:
-                        converted = True
-                        break
-                log_file.close()
-            except:
-                converted = False
 
-            if not converted or debug:
+            if not name_data["converted"] or debug:
                 small = False
                 out_scale = False
                 if self.resolution == 240:
@@ -238,7 +265,7 @@ class converter:
         if force_change_fps and not change_fps:
             command.append("-filter:v")
             command.append("fps=fps=" + str(self.fps))
-        command.append(new_file_name)
+        command.append(name_data["new_file_name"])
         # print(command)
 
         if array:
@@ -251,66 +278,19 @@ class converter:
 
     def convert_video(self, arquivo, resize=False, remove=False, process=False, current_dir=False, no_hierarchy=False,
                       force_change_fps=False, debug=False, working_log="./working.log"):
+        name_data = self.treat_file_name(arquivo, current_dir=current_dir, no_hierarchy=no_hierarchy,debug=debug)
+        if not name_data["convertable"] or (name_data["converted"] and not debug) or (
+                name_data["extension"] == self.extension_convert and not resize):
+            return 0
 
-        file_name_no_extension = os.path.splitext(arquivo.name)[0]
-        extension = os.path.splitext(arquivo.name)[1][1:]
-        relative_dir = str(self.so_folder_separator).join(
-            str(x) for x in arquivo.path.split(str(self.so_folder_separator))[:-1]) + str(self.so_folder_separator)
-        if not current_dir:
-            try:
-                os.makedirs(str(os.getcwd()) + self.so_folder_separator + str(relative_dir))
-            except:
-                pass
-            new_file_name = str(str(relative_dir) + str(file_name_no_extension))
-        elif not no_hierarchy:
-            relative_dir = relative_dir.replace(self.pasta, "")
-            try:
-                os.makedirs(str(relative_dir))
-            except:
-                pass
-            new_file_name = str(
-                str(os.getcwd()) + self.so_folder_separator + str(relative_dir) + str(file_name_no_extension))
-        else:
-            relative_dir = relative_dir.replace(self.pasta, "")
-            new_file_name = str(os.getcwd()) + self.so_folder_separator + str(file_name_no_extension)
-
-        if extension == self.extension_convert:
-            new_file_name = new_file_name + ".convert"
-            same_extension = True
-        else:
-            same_extension = False
-        new_file_name = new_file_name + "." + self.extension_convert
         try:
-            converted = False
-            # log_file=open(working_log,"r")
-            # for line in log_file.readlines():
-            # if line == new_file_name+"\n":
-            # log_file.close()
-            # print("working")
-            # return 0
-            # log_file.close()
-
-            log_file = open(self.resized_log)
-            for line in log_file.readlines():
-                if new_file_name in line:
-                    converted = True
-                    break
-            log_file.close()
-            log_file = open(self.resize_log)
-            for line in log_file.readlines():
-                if arquivo.path in line:
-                    converted = True
-                    break
-            log_file.close()
+            os.makedirs(name_data["folder_to_create"])
         except:
-            converted = False
-        # finally:
-        # log_file=open(working_log,"a")
-        # log_file.write(new_file_name+"\n")
-        # log_file.close()
+            pass
+
         command = self.create_command(arquivo, array=True, resize=resize, current_dir=current_dir, debug=debug,
                                       force_change_fps=force_change_fps)
-        if command == "" or (converted and not debug):
+        if command == "" or (name_data["converted"] and not debug):
             return 0
 
         if not process:
@@ -327,24 +307,24 @@ class converter:
                 # tmp_log_file.close()
                 # shutil.move(str(working_log)+".tmp",working_log)
                 log_file = open(self.resized_log, "a")
-                log_file.write(new_file_name + "\n")
+                log_file.write(name_data["new_file_name"] + "\n")
                 log_file.close()
                 log_file = open(self.resize_log, "a")
                 log_file.write(arquivo.path + "\n")
                 log_file.close()
             if remove and result.returncode == 0:
-                if same_extension:
-                    shutil.move(new_file_name,
-                                str(relative_dir) + str(file_name_no_extension) + "." + self.extension_convert)
+                if name_data["same_extension"]:
+                    shutil.move(name_data["new_file_name"],
+                                str(name_data["relative_dir"]) + str(
+                                    name_data["file_name_no_extension"]) + "." + self.extension_convert)
                 else:
                     os.remove(str(arquivo.path))
-            if result.returncode == 1:
-                os.remove(str(new_file_name))
+            if result.returncode == 1 and name_data["new_file_name"] !="":
+                os.remove(str(name_data["new_file_name"]))
             return result.returncode
         else:
             processo = subprocess.Popen(command)
-            retorno = {"process": processo, "new_file_name": new_file_name, "extension": extension,
-                       "same_extension": same_extension, "aquivo": arquivo}
+            retorno = {"process": processo, "aquivo": arquivo}
             return retorno
 
     def convert_all_files_sequential(self, resize=False, remove=False, current_dir=False, no_hierarchy=False,
@@ -365,7 +345,7 @@ class converter:
             print(self.results)
 
     def convert_multiple_video(self, multiple=2, resize=False, current_dir=False, no_hierarchy=False, remove=False,
-                               force_change_fps=False, working_log="./working.log"):
+                               force_change_fps=False,debug=False, working_log="./working.log"):
         processes = []
         file_index = 0
         while True:
@@ -388,6 +368,7 @@ class converter:
 
             for process in processes:
                 if process["process"].poll() != None:
+                    name_data=self.treat_file_name(process["arquivo"],current_dir=current_dir,no_hierarchy=no_hierarchy,debug=debug)
                     if resize:
                         # log_file=open(working_log,"a")
                         # tmp_log_file=open(str(working_log)+".tmp","a")

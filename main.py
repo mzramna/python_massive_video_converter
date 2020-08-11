@@ -1,6 +1,6 @@
 import allvideoconverter
 
-conversor = allvideoconverter.converter(resolution=480, codec="h264_qsv", fps=24, pasta="./test", preset="slow",
+conversor = allvideoconverter.converter(resolution=480, codec="h264_qsv", fps=24, pasta=".\\test", preset="slow",
                       hwaccel="qsv", threads=3)
 
 conversor.convert_all_files_sequential(resize=True, current_dir=True)
