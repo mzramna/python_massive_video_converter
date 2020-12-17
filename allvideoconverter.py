@@ -4,15 +4,21 @@ import platform
 import re
 import shutil
 import subprocess
+import fnmatch
+
 
 
 class converter:
     def __init__(self, extension_convert: str = "mkv", resolution: int = 480, codec: str = "h264_omx", fps: int = 24,
-                 crf: int = 20, preset: str = "slow", hwaccel="", threads=2, pasta="./", resize_log="./resize.log",
+                 crf: int = 20, preset: str = "slow", hwaccel="", threads=2, log_level=32, input_folder="./",output_folder="./convert/",
+                 resize_log="./resize.log",
                  resized_log="./resized.log"):
         self.resized_log = resized_log
         self.resize_log = resize_log
-        self.pasta = pasta
+        self.input_folder = input_folder
+        self.output_folder=output_folder
+        if not os.path.isdir(self.output_folder):
+            os.mkdir(self.output_folder)
         self.codec = codec
         self.extension_convert = extension_convert
         self.resolution = resolution
@@ -21,7 +27,8 @@ class converter:
         self.preset = preset
         self.hwaccel = hwaccel
         self.threads = threads
-        self.dir_data = self.list_content_folder(self.pasta)
+        self.log_level = str(log_level)
+        self.dir_data = self.list_content_folder(self.input_folder)
         self.files = []
         self.fill_files_list()
         self.files.sort(key=lambda x: x.stat().st_size, reverse=False)
@@ -72,6 +79,15 @@ class converter:
             result.append(aditional)
         return result
 
+    def compare_codec(self, arquivo):
+        check_dim = "ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1".split(
+            " ")
+        check_dim.append(arquivo.path)
+        dim = subprocess.run(check_dim, stdout=subprocess.PIPE)
+        dim = re.compile("\'(.*)\\\\r").findall(str(dim.stdout))[0]
+        # print(dim)
+        return str(dim)
+
     def compare_resolution(self, arquivo, width: int, height: int):
         check_dim = "ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0".split(" ")
         check_dim.append(arquivo.path)
@@ -84,8 +100,7 @@ class converter:
             return False
 
     def compare_fps(self, arquivo, fps):
-        check_fps = "ffprobe -v error -select_streams v -of default=noprint_wrappers=1:nokey=1 -show_entries stream=r_frame_rate".split(
-            " ")
+        check_fps = "ffprobe -v error -select_streams v -of default=noprint_wrappers=1:nokey=1 -show_entries stream=r_frame_rate".split(" ")
         check_fps.append(arquivo.path)
         dim = subprocess.run(check_fps, stdout=subprocess.PIPE)
         dim = re.compile("(\d+\/\d+)").findall(str(dim.stdout))[0].split("/")
@@ -93,7 +108,12 @@ class converter:
         if dim > fps:
             return True
         return False
-
+    
+    def find_files(self,pattern):
+        '''Return list of files matching pattern in base folder.'''
+        return [n for n in fnmatch.filter(os.listdir(self.input_folder), pattern) if
+        os.path.isfile(os.path.join(self.input_folder, n))]
+    
     def treat_file_name(self, arquivo, current_dir=False, no_hierarchy=False, debug=False):
         fileExtensions = ["webm", "flv", "vob", "ogg", "ogv", "drc", "gifv", "mng", "avi", "mov", "qt", "wmv", "yuv",
                           "rm", "rmvb", "asf", "amv", "mp4", "m4v", "mp\*", "m\?v", "svi", "3gp", "flv", "f4v", "mkv"]
@@ -108,24 +128,24 @@ class converter:
 
             if not current_dir and not no_hierarchy:
                 # print("no current dir and hierarchy")
-                new_file_name = str(str(self.pasta) + str(relative_dir) + str(file_name_no_extension))
-                folder_to_create = str(self.pasta) + self.so_folder_separator + str(relative_dir)
+                new_file_name = str(str(self.input_folder) + str(relative_dir) + str(file_name_no_extension))
+                folder_to_create = str(self.input_folder) + self.so_folder_separator + str(relative_dir)
 
             elif not current_dir and no_hierarchy:
                 # print("no current dir and no hierarchy")
-                new_file_name = str(str(self.pasta) + self.so_folder_separator + str(file_name_no_extension))
-                folder_to_create = str(self.pasta) + self.so_folder_separator
+                new_file_name = str(str(self.input_folder) + self.so_folder_separator + str(file_name_no_extension))
+                folder_to_create = str(self.input_folder) + self.so_folder_separator
 
             elif current_dir and not no_hierarchy:
                 # print("current dir and hierarchy")
-                relative_dir = relative_dir.replace(self.pasta, "")
+                relative_dir = relative_dir.replace(self.input_folder, "")
                 new_file_name = str(
                     str(os.getcwd()) + self.so_folder_separator + str(relative_dir) + str(file_name_no_extension))
                 folder_to_create = str(relative_dir)
 
             elif current_dir and no_hierarchy:
                 # print("current dir and no hierarchy")
-                relative_dir = relative_dir.replace(self.pasta, "")
+                relative_dir = relative_dir.replace(self.input_folder, "")
                 new_file_name = str(os.getcwd()) + self.so_folder_separator + str(file_name_no_extension)
                 folder_to_create = ""
 
@@ -189,18 +209,26 @@ class converter:
         if not name_data["convertable"] or (name_data["converted"] and not debug) or (
                 name_data["extension"] == self.extension_convert and not resize):
             return ""
-
+        #if os.path.isfile(name_data["new_file_name"]) and current_dir==True or os.path.isfile(str(name_data["relative_dir"]) + str(
+        #                            name_data["file_name_no_extension"]) + "." + self.extension_convert) and current_dir==False :
+        #  return ""
         command = [self.ffmpeg_executable, "-y"]
+        
         if self.hwaccel != "":
             command.append("-hwaccel")
             command.append(self.hwaccel)
-
-        # if extension == "avi":
-        #    command.append("-bsf:v")
-        #    command.append("mpeg4_unpack_bframes")
-        command = command + ["-hide_banner", "-i", str(arquivo.path), "-acodec", "copy", "-scodec", "copy", "-c:v",
-                             self.codec, "-map_metadata", "0", "-map_metadata:s:a", "0:s:a", "-pix_fmt", "yuv420p",
+        command = command + ["-hide_banner", "-loglevel", self.log_level, "-i", str(arquivo.path)]
+        #subtitles_avaliable=self.find_files(name_data["file_name_no_extension"]+"*.srt")
+        #if len(subtitles_avaliable)>0:
+        #    for i in subtitles_avaliable:
+        #        command.append("-i")
+        #        command.append(str(self.input_folder)+self.so_folder_separator+str(i))
+        command = command +["-acodec", "copy", "-scodec", "copy", "-c:v",
+                             self.codec, "-map_metadata", "0", "-pix_fmt", "yuv420p",
                              "-threads", str(self.threads)]
+        
+            
+            
         if self.hwaccel == "qsv":
             command.append("-load_plugin")
             command.append("hevc_hw")
@@ -289,7 +317,17 @@ class converter:
         if force_change_fps and not change_fps:
             command.append("-filter:v")
             command.append("fps=fps=" + str(self.fps))
-        command.append(name_data["new_file_name"])
+        if self.compare_codec(arquivo) == "mpeg4" and "h26" in self.codec :
+            command.append("-bsf:v")
+            command.append("mpeg4_unpack_bframes")
+        #command.append(str(name_data["new_file_name"])+".tmp")
+        #if len(subtitles_avaliable)>0:
+        #    command.append("-c:s")
+        #    command.append("mov_text")
+        #    for i in range(0,len(subtitles_avaliable)+1):
+        #        command.append("-map")
+        #        command.append(i)
+        command.append(str(name_data["new_file_name"]))
         # print(command)
 
         if array:
@@ -311,13 +349,14 @@ class converter:
             os.makedirs(name_data["folder_to_create"])
         except:
             pass
-
         command = self.create_command(arquivo, array=True, resize=resize, current_dir=current_dir, debug=debug,
                                       force_change_fps=force_change_fps, no_hierarchy=no_hierarchy)
         if command == "" or (name_data["converted"] and not debug):
             return 0
 
         if not process:
+            print(command)
+            os.chdir(self.output_folder)
             result = subprocess.run(command, stdout=subprocess.PIPE)
             if resize and result.returncode == 0:
                 # log_file=open(working_log,"a")
@@ -330,6 +369,7 @@ class converter:
                 # log_file.close()
                 # tmp_log_file.close()
                 # shutil.move(str(working_log)+".tmp",working_log)
+                #os.rename(name_data["new_file_name"]+".tmp",name_data["new_file_name"])
                 log_file = open(self.resized_log, "a")
                 log_file.write(name_data["new_file_name"] + "\n")
                 log_file.close()
@@ -338,13 +378,19 @@ class converter:
                 log_file.close()
             if remove and result.returncode == 0:
                 if name_data["same_extension"]:
+                    #shutil.move(name_data["new_file_name"]+".tmp",
+                    #            str(name_data["relative_dir"]) + str(
+                    #                name_data["file_name_no_extension"]) + "." + self.extension_convert)
                     shutil.move(name_data["new_file_name"],
                                 str(name_data["relative_dir"]) + str(
                                     name_data["file_name_no_extension"]) + "." + self.extension_convert)
                 else:
                     os.remove(str(arquivo.path))
             if result.returncode == 1 and name_data["new_file_name"] != "":
-                os.remove(str(name_data["new_file_name"]))
+                try:
+                    os.remove(str(name_data["new_file_name"]+".tmp"))
+                except:
+                    pass
             return result.returncode
         else:
             processo = subprocess.Popen(command)
@@ -361,7 +407,8 @@ class converter:
                     self.results[tmp] = []
                 self.results[tmp].append(file)
                 if tmp != 0:
-                    print(self.results[tmp])
+                    pass
+                    # print(self.results[tmp])
                     # input("waiting")
                 else:
                     self.files.remove(file)
@@ -427,3 +474,8 @@ class converter:
 
             if len(processes) == 0:
                 return 1
+
+conversor=converter(resolution=720,codec="hevc_nvenc",fps=24,input_folder=".\\" ,output_folder=".\\convert",preset="slow",hwaccel="cuda",threads=4)
+
+conversor.convert_all_files_sequential(resize=True,current_dir=True,no_hierarchy=True)
+conversor.log_error_files()
