@@ -132,29 +132,38 @@ class converter:
             relative_dir = relative_dir.replace(self.input_folder, "")
             if relative_dir[0] == self.so_folder_separator:
                 relative_dir=relative_dir[1:]
-            print("relative_dir")
+            #print("relative_dir")
             ##make the specificities from combination of parameters of current_dir and no_hierarchy
             if not current_dir and not no_hierarchy:
                 ## this works when will not save into current dir and will respect the folder hierarchy from imput folder
-                print("no current dir and hierarchy")
-                new_file_name = str(str(self.output_folder) + str(relative_dir) + str(file_name_no_extension))
+                #print("no current dir and hierarchy")
+                
                 if str(self.output_folder[-1]) != self.so_folder_separator:
+                    new_file_name = str(str(self.output_folder)+self.so_folder_separator + str(relative_dir) + str(file_name_no_extension))
                     folder_to_create = str(self.output_folder) + self.so_folder_separator + str(relative_dir)
+                    if self.resized_log[:2]=="./":
+                        log_file_name = str(self.output_folder)+self.so_folder_separator +self.resized_log[2:]
                 else:
+                    new_file_name = str(str(self.output_folder) + str(relative_dir) + str(file_name_no_extension))
                     folder_to_create = str(self.output_folder) + str(relative_dir)
+                    if self.resized_log[:2]=="./":
+                        log_file_name = str(self.output_folder) +self.resized_log[2:]
             elif not current_dir and no_hierarchy:
                 ## this works when will not save into current dir and will not respect the folder hierarchy from imput folder
-                print("no current dir and no hierarchy")
+                #print("no current dir and no hierarchy")
                 if str(self.output_folder[-1]) != self.so_folder_separator:
                     new_file_name = str(str(self.output_folder) + self.so_folder_separator + str(file_name_no_extension))
                     folder_to_create = str(self.output_folder) + self.so_folder_separator
+                    if self.resized_log[:2]=="./":
+                        log_file_name = str(self.output_folder)+self.so_folder_separator +self.resized_log[2:]
                 else:
                     new_file_name = str(str(self.output_folder) + str(file_name_no_extension))
                     folder_to_create = str(self.output_folder) 
-
+                    if self.resized_log[:2]=="./":
+                        log_file_name = str(self.output_folder) +self.resized_log[2:]
             elif current_dir and not no_hierarchy:
                 ## this works when will save into current dir and will respect the folder hierarchy from imput folder
-                print("current dir and hierarchy")
+                #print("current dir and hierarchy")
                 #relative_dir = relative_dir.replace(self.input_folder, "")
                 if str(os.getcwd()[-1]) != self.so_folder_separator:
                     new_file_name = str(
@@ -163,7 +172,7 @@ class converter:
                     new_file_name = str(
                       str(os.getcwd()) + str(relative_dir) + str(file_name_no_extension))
                 folder_to_create = str(relative_dir)
-
+                log_file_name = self.resized_log
             elif current_dir and no_hierarchy:
                 ## this works when will save into current dir and will not respect the folder hierarchy from imput folder
                 print("current dir and no hierarchy")
@@ -173,7 +182,8 @@ class converter:
                 else:
                     new_file_name = str(os.getcwd()) + str(file_name_no_extension)
                 folder_to_create = ""
-            print(folder_to_create)
+                log_file_name = self.resized_log
+            #print(folder_to_create)
             if extension == self.extension_convert:
                 new_file_name = new_file_name + ".convert"
                 same_extension = True
@@ -185,6 +195,7 @@ class converter:
                         self.codec) + "." + str(self.resolution) + "." + str(self.fps))
             new_file_name = new_file_name + "." + self.extension_convert
             try:
+                log_file=open(log_file_name)
                 converted = False
                 # log_file=open(working_log,"r")
                 # for line in log_file.readlines():
@@ -194,7 +205,7 @@ class converter:
                 # return 0
                 # log_file.close()
 
-                log_file = open(self.resized_log)
+                
                 for line in log_file.readlines():
                     if new_file_name in line:
                         converted = True
@@ -218,7 +229,7 @@ class converter:
 
         return {"file_name_no_extension": file_name_no_extension, "extension": extension, "convertable": convertable,
                 "relative_dir": relative_dir, "new_file_name": new_file_name, "same_extension": same_extension,
-                "folder_to_create": folder_to_create, "converted": converted}
+                "folder_to_create": folder_to_create, "converted": converted,"log_file_name":log_file_name}
 
     def log_error_files(self, error_log_file="./error.log"):
         file = open(error_log_file, "a")
@@ -396,11 +407,8 @@ class converter:
                 # tmp_log_file.close()
                 # shutil.move(str(working_log)+".tmp",working_log)
                 #os.rename(name_data["new_file_name"]+".tmp",name_data["new_file_name"])
-                log_file = open(self.resized_log, "a")
+                log_file = open(name_data["log_file_name"], "a")
                 log_file.write(name_data["new_file_name"] + "\n")
-                log_file.close()
-                log_file = open(self.resize_log, "a")
-                log_file.write(arquivo.path + "\n")
                 log_file.close()
             if remove and result.returncode == 0:
                 if name_data["same_extension"]:
@@ -478,7 +486,7 @@ class converter:
                         # log_file.close()
                         # tmp_log_file.close()
                         # shutil.move(str(working_log)+".tmp",working_log)
-                        log_file = open(self.resized_log, "a")
+                        log_file = open(name_data["log_file_name"], "a")
                         log_file.write(process["new_file_name"] + "\n")
                         log_file.close()
                         log_file = open(self.resize_log, "a")
@@ -500,7 +508,6 @@ class converter:
 
             if len(processes) == 0:
                 return 1
-
 
 conversor=converter(resolution=720,codec="hevc_nvenc",fps=24,input_folder=".\\" ,output_folder=".\\convert",preset="slow",hwaccel="cuda",threads=4)
 
