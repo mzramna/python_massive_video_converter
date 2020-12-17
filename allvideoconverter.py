@@ -123,32 +123,57 @@ class converter:
 
         if (extension or self.extension_convert) in fileExtensions:
             convertable = True
-            relative_dir = self.so_folder_separator.join(
-                str(x) for x in arquivo.path.split(self.so_folder_separator)[:-1]) + self.so_folder_separator
-
+            ##create relative dir
+            relative_dir = ""
+            for x in arquivo.path.split(self.so_folder_separator)[:-1]:
+                relative_dir=str(relative_dir+str(x)+self.so_folder_separator)
+            if relative_dir[-1] != self.so_folder_separator:
+                relative_dir=relative_dir+self.so_folder_separator
+            relative_dir = relative_dir.replace(self.input_folder, "")
+            if relative_dir[0] == self.so_folder_separator:
+                relative_dir=relative_dir[1:]
+            print("relative_dir")
+            ##make the specificities from combination of parameters of current_dir and no_hierarchy
             if not current_dir and not no_hierarchy:
-                # print("no current dir and hierarchy")
-                new_file_name = str(str(self.input_folder) + str(relative_dir) + str(file_name_no_extension))
-                folder_to_create = str(self.input_folder) + self.so_folder_separator + str(relative_dir)
-
+                ## this works when will not save into current dir and will respect the folder hierarchy from imput folder
+                print("no current dir and hierarchy")
+                new_file_name = str(str(self.output_folder) + str(relative_dir) + str(file_name_no_extension))
+                if str(self.output_folder[-1]) != self.so_folder_separator:
+                    folder_to_create = str(self.output_folder) + self.so_folder_separator + str(relative_dir)
+                else:
+                    folder_to_create = str(self.output_folder) + str(relative_dir)
             elif not current_dir and no_hierarchy:
-                # print("no current dir and no hierarchy")
-                new_file_name = str(str(self.input_folder) + self.so_folder_separator + str(file_name_no_extension))
-                folder_to_create = str(self.input_folder) + self.so_folder_separator
+                ## this works when will not save into current dir and will not respect the folder hierarchy from imput folder
+                print("no current dir and no hierarchy")
+                if str(self.output_folder[-1]) != self.so_folder_separator:
+                    new_file_name = str(str(self.output_folder) + self.so_folder_separator + str(file_name_no_extension))
+                    folder_to_create = str(self.output_folder) + self.so_folder_separator
+                else:
+                    new_file_name = str(str(self.output_folder) + str(file_name_no_extension))
+                    folder_to_create = str(self.output_folder) 
 
             elif current_dir and not no_hierarchy:
-                # print("current dir and hierarchy")
-                relative_dir = relative_dir.replace(self.input_folder, "")
-                new_file_name = str(
-                    str(os.getcwd()) + self.so_folder_separator + str(relative_dir) + str(file_name_no_extension))
+                ## this works when will save into current dir and will respect the folder hierarchy from imput folder
+                print("current dir and hierarchy")
+                #relative_dir = relative_dir.replace(self.input_folder, "")
+                if str(os.getcwd()[-1]) != self.so_folder_separator:
+                    new_file_name = str(
+                      str(os.getcwd()) + self.so_folder_separator + str(relative_dir) + str(file_name_no_extension))
+                else:
+                    new_file_name = str(
+                      str(os.getcwd()) + str(relative_dir) + str(file_name_no_extension))
                 folder_to_create = str(relative_dir)
 
             elif current_dir and no_hierarchy:
-                # print("current dir and no hierarchy")
-                relative_dir = relative_dir.replace(self.input_folder, "")
-                new_file_name = str(os.getcwd()) + self.so_folder_separator + str(file_name_no_extension)
+                ## this works when will save into current dir and will not respect the folder hierarchy from imput folder
+                print("current dir and no hierarchy")
+                #relative_dir = relative_dir.replace(self.input_folder, "")
+                if str(self.input_folder[-1]) != self.so_folder_separator:
+                    new_file_name = str(os.getcwd()) + self.so_folder_separator + str(file_name_no_extension)
+                else:
+                    new_file_name = str(os.getcwd()) + str(file_name_no_extension)
                 folder_to_create = ""
-
+            print(folder_to_create)
             if extension == self.extension_convert:
                 new_file_name = new_file_name + ".convert"
                 same_extension = True
@@ -206,6 +231,7 @@ class converter:
     def create_command(self, arquivo, array=False, resize=False, current_dir=False, no_hierarchy=False,
                        force_change_fps=False, debug=False):
         name_data = self.treat_file_name(arquivo, current_dir=current_dir, no_hierarchy=no_hierarchy, debug=debug)
+        print(name_data)
         if not name_data["convertable"] or (name_data["converted"] and not debug) or (
                 name_data["extension"] == self.extension_convert and not resize):
             return ""
@@ -355,7 +381,7 @@ class converter:
             return 0
 
         if not process:
-            print(command)
+            #print(command)
             os.chdir(self.output_folder)
             result = subprocess.run(command, stdout=subprocess.PIPE)
             if resize and result.returncode == 0:
@@ -474,6 +500,7 @@ class converter:
 
             if len(processes) == 0:
                 return 1
+
 
 conversor=converter(resolution=720,codec="hevc_nvenc",fps=24,input_folder=".\\" ,output_folder=".\\convert",preset="slow",hwaccel="cuda",threads=4)
 
