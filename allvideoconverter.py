@@ -46,7 +46,7 @@ class converter:
 
     def fill_files_list(self, folders=""):
         fileExtensions = ["webm", "flv", "vob", "ogg", "ogv", "drc", "gifv", "mng", "avi", "mov", "qt", "wmv", "yuv",
-                          "rm", "rmvb", "asf", "amv", "mp4", "m4v", "mp\*", "m\?v", "svi", "3gp", "flv", "f4v", "mkv"]
+                          "rm", "rmvb", "asf", "amv", "mp4", "m4v", "mp\*", "m\?v", "svi", "3gp", "flv", "f4v", "mkv","divx"]
         if folders == "":
             folders = self.dir_data["dirs"]
             for file in self.dir_data["files"]:
@@ -79,9 +79,26 @@ class converter:
             result.append(aditional)
         return result
 
-    def compare_codec(self, arquivo):
+    def compare_video_codec(self, arquivo):
         check_dim = "ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1".split(
             " ")
+        check_dim.append(arquivo.path)
+        dim = subprocess.run(check_dim, stdout=subprocess.PIPE)
+        dim = re.compile("\'(.*)\\\\r").findall(str(dim.stdout))[0]
+        # print(dim)
+        return str(dim)
+        
+    def compare_audio_codec(self, arquivo,stream):
+        check_dim = str("ffprobe -v error -select_streams a:"+str(stream)+" -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1").split(
+            " ")
+        check_dim.append(arquivo.path)
+        dim = subprocess.run(check_dim, stdout=subprocess.PIPE)
+        dim = re.compile("\'(.*)\\\\r").findall(str(dim.stdout))[0]
+        # print(dim)
+        return str(dim)
+    
+    def compare_subtitle_codec(self, arquivo,stream):
+        check_dim = str("ffprobe -v error -select_streams s:"+str(stream)+" -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1").split(" ")
         check_dim.append(arquivo.path)
         dim = subprocess.run(check_dim, stdout=subprocess.PIPE)
         dim = re.compile("\'(.*)\\\\r").findall(str(dim.stdout))[0]
@@ -116,7 +133,7 @@ class converter:
     
     def treat_file_name(self, arquivo, current_dir=False, no_hierarchy=False, debug=False):
         fileExtensions = ["webm", "flv", "vob", "ogg", "ogv", "drc", "gifv", "mng", "avi", "mov", "qt", "wmv", "yuv",
-                          "rm", "rmvb", "asf", "amv", "mp4", "m4v", "mp\*", "m\?v", "svi", "3gp", "flv", "f4v", "mkv"]
+                          "rm", "rmvb", "asf", "amv", "mp4", "m4v", "mp\*", "m\?v", "svi", "3gp", "flv", "f4v", "mkv","divx"]
 
         file_name_no_extension = os.path.splitext(arquivo.name)[0]
         extension = os.path.splitext(arquivo.name)[1][1:]
@@ -241,8 +258,10 @@ class converter:
 
     def create_command(self, arquivo, array=False, resize=False, current_dir=False, no_hierarchy=False,
                        force_change_fps=False, debug=False):
+        subtitle_srt=["srt","ass","ssa"]
+        subtitle_bitmap=["hdmv_pgs_subtitle","mov_text"]
         name_data = self.treat_file_name(arquivo, current_dir=current_dir, no_hierarchy=no_hierarchy, debug=debug)
-        print(name_data)
+        #print(name_data)
         if not name_data["convertable"] or (name_data["converted"] and not debug) or (
                 name_data["extension"] == self.extension_convert and not resize):
             return ""
@@ -250,7 +269,11 @@ class converter:
         #                            name_data["file_name_no_extension"]) + "." + self.extension_convert) and current_dir==False :
         #  return ""
         command = [self.ffmpeg_executable, "-y"]
-        
+        try:
+            print(self.compare_subtitle_codec(arquivo,0))
+            print(compare_subtitle_codec(arquivo,0))
+        except:
+            pass
         if self.hwaccel != "":
             command.append("-hwaccel")
             command.append(self.hwaccel)
@@ -260,11 +283,15 @@ class converter:
         #    for i in subtitles_avaliable:
         #        command.append("-i")
         #        command.append(str(self.input_folder)+self.so_folder_separator+str(i))
-        command = command +["-acodec", "copy", "-scodec", "copy", "-c:v",
+        command = command +["-acodec", "aac",  "-c:v",
                              self.codec, "-map_metadata", "0", "-pix_fmt", "yuv420p",
-                             "-threads", str(self.threads)]
-        
-            
+                             "-threads", str(self.threads),"-copy_unknown"]
+        try:
+            if self.compare_subtitle_codec(arquivo,0) in subtitle_srt:
+                command.append("-c:s")
+                command.append("srt")
+        except:
+            pass
             
         if self.hwaccel == "qsv":
             command.append("-load_plugin")
@@ -354,7 +381,7 @@ class converter:
         if force_change_fps and not change_fps:
             command.append("-filter:v")
             command.append("fps=fps=" + str(self.fps))
-        if self.compare_codec(arquivo) == "mpeg4" and "h26" in self.codec :
+        if self.compare_video_codec(arquivo) == "mpeg4" and "h26" in self.codec :
             command.append("-bsf:v")
             command.append("mpeg4_unpack_bframes")
         #command.append(str(name_data["new_file_name"])+".tmp")
