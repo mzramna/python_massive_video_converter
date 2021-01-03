@@ -35,3 +35,9 @@ no_hierarchy:if false it will keep all the files hierarchy of the input file,if 
 force_change_fps:it will force the fps to change,even if the original file fps is slower than the fps value inserted here
 debug:if enabled will print lots of debug while converting the file
 ```
+
+if you want to identify the media files you just have to use the same parameters as the convencional converter class,but add the tmdb api
+like this:
+original class:`conversor=converter(resolution=720,codec="hevc_nvenc",fps=24,input_folder=".\\" ,output_folder=".\\convert",preset="slow",hwaccel="cuda",threads=4)`
+identifier class`conversor=converter_identifier(imdb_api_key=tmdb_API_KEY,resolution=720,codec="hevc_nvenc",fps=24,input_folder=".\\" ,output_folder=".\\convert",preset="slow",hwaccel="cuda",threads=4)`
+
