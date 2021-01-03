@@ -144,12 +144,18 @@ class converter:
             convertable = True
             ##create relative dir
             relative_dir = ""
-            for x in arquivo.path.split(self.so_folder_separator)[:-1]:
-                relative_dir=str(relative_dir+str(x)+self.so_folder_separator)
+            if len(arquivo.path.split(self.so_folder_separator))>1:
+                for x in arquivo.path.split(self.so_folder_separator)[:-1]:
+                    relative_dir=str(relative_dir+str(x)+self.so_folder_separator)
+            else:
+                relative_dir = str(relative_dir + str(".") + self.so_folder_separator)
+
             if relative_dir[-1] != self.so_folder_separator:
-                relative_dir=relative_dir+self.so_folder_separator
+                relative_dir = relative_dir + self.so_folder_separator
             relative_dir = relative_dir.replace(self.input_folder, "")
+
             if relative_dir!="":
+
                 if relative_dir[0] == self.so_folder_separator:
                     relative_dir=relative_dir[1:]
             #print("relative_dir")
@@ -247,7 +253,7 @@ class converter:
 
     def create_command(self, arquivo, array=False, resize=False, current_dir=False, no_hierarchy=False,force_change_fps=False, debug=False):
         subtitle_srt=["srt","ass","ssa"]
-        subtitle_bitmap=["hdmv_pgs_subtitle","mov_text"]
+        subtitle_bitmap=["dvdsub", "dvd_subtitle", "pgssub", "hdmv_pgs_subtitle"]
         name_data = self.treat_file_name(arquivo, current_dir=current_dir, no_hierarchy=no_hierarchy, debug=debug)
         #print(name_data)
         if not name_data["convertable"] or (name_data["converted"] and not debug) or (
@@ -257,11 +263,6 @@ class converter:
         #                            name_data["file_name_no_extension"]) + "." + self.extension_convert) and current_dir==False :
         #  return ""
         command = [self.ffmpeg_executable, "-y"]
-        try:
-            print(self.compare_subtitle_codec(arquivo,0))
-            print(compare_subtitle_codec(arquivo,0))
-        except:
-            pass
         if self.hwaccel != "":
             command.append("-hwaccel")
             command.append(self.hwaccel)
@@ -525,7 +526,241 @@ class converter:
             if len(processes) == 0:
                 return 1
 
-conversor=converter(resolution=720,codec="hevc_nvenc",fps=24,input_folder=".\\" ,output_folder=".\\convert",preset="slow",hwaccel="cuda",threads=4)
+class converter_identifier(converter):
+    """
+    until second order this just works with movies
+    """
+    import tmdbsimple as tmdb
+    import shlex
+    from imdbpie import Imdb
+    from json import JSONDecoder
+    import urllib
+    def __init__(self,imdb_api_key, extension_convert: str = "mkv", resolution: int = 480, codec: str = "h264_omx", fps: int = 24,
+                 crf: int = 20, preset: str = "slow", hwaccel="", threads=2, log_level=32, input_folder="./",
+                 output_folder="./convert/", resize_log="./resize.log", resized_log="./resized.log"):
+        super().__init__(extension_convert, resolution, codec, fps,
+                 crf, preset, hwaccel, threads, log_level, input_folder,
+                 output_folder, resize_log, resized_log)
+        self.tmdb.API_KEY=imdb_api_key
 
-conversor.convert_all_files_sequential(resize=True,current_dir=True,no_hierarchy=True)
+    def collect_stream_metadata(self,filename):
+        """
+        Returns a list of streams' metadata present in the media file passed as
+        the argument (filename)
+        """
+        command = 'ffprobe -i "{}" -show_streams -of json'.format(filename)
+        args = self.shlex.split(command)
+        p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                             universal_newlines=True)
+        out, err = p.communicate()
+
+        json_data = self.JSONDecoder().decode(out)
+
+        return json_data
+
+    def create_command(self, arquivo, array=False, resize=False, current_dir=False, no_hierarchy=False,
+                       force_change_fps=False, debug=False):
+
+        avaliable_metadatas={"mp4":["title","author","album_artist","album","grouping","composer","year","track","comment","copyright","show","episode_id","network","lyrics"],
+                             "m4v": ["title", "author", "album_artist", "album", "grouping", "composer", "year",
+                                             "track", "comment", "copyright", "show", "episode_id", "network",
+                                             "lyrics"],
+                             "mov": ["title", "author", "album_artist", "album", "grouping", "composer", "year",
+                                             "track", "comment", "copyright", "show", "episode_id", "network",
+                                             "lyrics"],
+                             "mkv":["title", "author", "album_artist", "album", "grouping", "composer", "year",
+                                             "track", "comment", "copyright", "show", "episode_id", "network",
+                                             "lyrics"]}
+        title=os.path.splitext(arquivo.name)[0]
+        command=super().create_command(arquivo, True, resize, current_dir, no_hierarchy,force_change_fps, debug)
+        command=command[:-1]
+        stream_md = self.collect_stream_metadata(arquivo)
+        streams_to_process = []
+
+        print('\nSearching IMDb for "{}"'.format(title))
+
+        imdb = self.Imdb()
+        movie_results = []
+        results = imdb.search_for_title(title)
+        for result in results:
+            if result['type'] == "feature":
+                movie_results.append(result)
+
+        if not movie_results:
+            while not movie_results:
+                title = input('\nNo results for "' + title +
+                              '" Enter alternate/correct movie title >> ')
+
+                results = imdb.search_for_title(title)
+                for result in results:
+                    if result['type'] == "feature":
+                        movie_results.append(result)
+
+        # The most prominent result is the first one
+        # mpr - Most Prominent Result
+        mpr = movie_results[0]
+        print('\nFetching data for {} ({})'.format(mpr['title'],
+                                                   mpr['year']))
+        imdb_movie = imdb.get_title(mpr['imdb_id'])
+
+        imdb_movie_title = imdb_movie['base']['title']
+        imdb_movie_id = mpr['imdb_id']
+        imdb_movie_year = imdb_movie['base']['year']
+        imdb_movie_rating = imdb_movie['ratings']['rating']
+        if not 'outline' in imdb_movie['plot']:
+            imdb_movie_plot_outline = (imdb_movie['plot']['summaries'][0]
+            ['text'])
+            print("\nPlot outline does not exist. Fetching plot summary "
+                  "instead.\n\n")
+        else:
+            imdb_movie_plot_outline = imdb_movie['plot']['outline']['text']
+
+        # Composing a string to have the rating and the plot of the
+        # movie which will go into the 'comment' metadata of the
+        # mp4 file.
+        imdb_rating_and_plot = str('IMDb rating ['
+                                   + str(float(imdb_movie_rating))
+                                   + '/10] - '
+                                   + imdb_movie_plot_outline)
+
+        imdb_movie_genres = imdb.get_title_genres(imdb_movie_id)['genres']
+
+        # Composing the 'genre' string of the movie.
+        # I use ';' as a delimeter to searate the multiple genre values
+        genre = ';'.join(imdb_movie_genres)
+        print(avaliable_metadatas[self.extension_convert])
+        for metadata in imdb_movie['base']:
+            print(metadata)
+            if metadata in avaliable_metadatas[self.extension_convert]:
+                command.append("-metadata")
+                command.append(metadata + "=" + str(imdb_movie['base'][metadata]))
+        command.append("-metadata")
+        command.append("description="+str(imdb_rating_and_plot))
+        command.append("-metadata")
+        command.append("genre=" + str(genre) )
+        command.append("-metadata")
+        command.append("rating=" + str(imdb_movie_rating/2) )
+        command.append("-metadata")
+        command.append("imdb=" + str(imdb_movie_id) )
+        newfilename = (imdb_movie_title
+                       + ' ('
+                       + str(imdb_movie_year)
+                       + ').'+self.extension_convert)
+        newfilename = (newfilename
+                       .replace(':', ' -')
+                       .replace('/', ' ')
+                       .replace('?', ''))
+        for f in streams_to_process:
+            command.append("-map 0:{}".format(f))
+
+
+        #if self.extension_convert != "mkv":
+        poster_filename = title + ".jpg"
+        if not os.path.isfile(poster_filename):
+            print('\nFetching the movie poster...')
+            tmdb_find = self.tmdb.Find(imdb_movie_id)
+            tmdb_find.info(external_source='imdb_id')
+
+            path = tmdb_find.movie_results[0]['poster_path']
+            complete_path = r'https://image.tmdb.org/t/p/w780' + path
+
+            uo = self.urllib.request.urlopen(complete_path)
+            with open(poster_filename, "wb") as poster_file:
+                poster_file.write(uo.read())
+                poster_file.close()
+        command.append("-attach")
+        command.append(poster_filename)
+        command.append("-metadata:s:t:0")
+        command.append("mimetype=image/jpg")
+            #command.append("-metadata:s:t:0")
+            #command.append("filename=")
+
+
+
+        command.append(self.output_folder+self.so_folder_separator+newfilename)
+        if array:
+            return command
+        else:
+            retorno = ""
+            for comand in command:
+                retorno += comand + " "
+            return retorno
+
+    def convert_video(self, arquivo, resize=False, remove=False, process=False, current_dir=False, no_hierarchy=False,force_change_fps=False, debug=False, working_log="./working.log"):
+        name_data = self.treat_file_name(arquivo, current_dir=current_dir, no_hierarchy=no_hierarchy,remove=remove, debug=debug)
+        if not name_data["convertable"] or (name_data["converted"] and not debug) or (
+                name_data["extension"] == self.extension_convert and not resize):
+            return 0
+
+        try:
+            os.makedirs(name_data["folder_to_create"])
+        except:
+            pass
+        command = self.create_command(arquivo, array=True, resize=resize, current_dir=current_dir, debug=debug,force_change_fps=force_change_fps, no_hierarchy=no_hierarchy)
+        if command == "" or (name_data["converted"] and not debug):
+            return 0
+        print(command)
+        if not process:
+            #print(command)
+            #os.chdir(self.output_folder)
+            result = subprocess.run(command, stdout=subprocess.PIPE)
+            os.remove(os.path.splitext(arquivo.name)[0] + ".jpg")
+            if resize and result.returncode == 0:
+                # log_file=open(working_log,"a")
+                # tmp_log_file=open(str(working_log)+".tmp","a")
+                # for line in log_file.readlines():
+                # if line == new_file_name+"\n":
+                # pass
+                # else:
+                # tmp_log_file.write(line)
+                # log_file.close()
+                # tmp_log_file.close()
+                # shutil.move(str(working_log)+".tmp",working_log)
+                #os.rename(name_data["new_file_name"]+".tmp",name_data["new_file_name"])
+                log_file = open(name_data["log_file_name"], "a")
+                log_file.write(name_data["new_file_name"] + "\n")
+                log_file.close()
+            if remove and result.returncode == 0:
+                if name_data["same_extension"]:
+                    #shutil.move(name_data["new_file_name"]+".tmp",
+                    #            str(name_data["relative_dir"]) + str(
+                    #                name_data["file_name_no_extension"]) + "." + self.extension_convert)
+                    shutil.move(name_data["new_file_name"],
+                                str(name_data["relative_dir"]) + str(
+                                    name_data["file_name_no_extension"]) + "." + self.extension_convert)
+                else:
+                    os.remove(str(arquivo.path))
+            if result.returncode == 1 and name_data["new_file_name"] != "":
+                try:
+                    os.remove(str(name_data["new_file_name"]+".tmp"))
+                except:
+                    pass
+            return result.returncode
+        else:
+            processo = subprocess.Popen(command)
+            retorno = {"process": processo, "aquivo": arquivo}
+            return retorno
+
+    def convert_all_files_sequential(self, resize=False, remove=False, current_dir=False, no_hierarchy=False,force_change_fps=False, debug=False):
+        if self.files != []:
+            for file in self.files:
+                tmp = self.convert_video(file, resize=resize, remove=remove, process=False, current_dir=current_dir,
+                                         no_hierarchy=no_hierarchy, force_change_fps=force_change_fps, debug=debug)
+                if tmp not in self.results.keys():
+                    self.results[tmp] = []
+                self.results[tmp].append(file)
+                if tmp != 0:
+                    pass
+                    # print(self.results[tmp])
+                    # input("waiting")
+                else:
+                    self.files.remove(file)
+        else:
+            print(self.results)
+
+tmdb_API_KEY = 'b888b64c9155c26ade5659ea4dd60e64'
+
+conversor=converter_identifier(imdb_api_key=tmdb_API_KEY,resolution=720,codec="hevc_nvenc",fps=24,input_folder=".\\" ,output_folder=".\\convert",preset="slow",hwaccel="cuda",threads=4)
+
+conversor.convert_all_files_sequential(resize=True,current_dir=False,no_hierarchy=True)
 conversor.log_error_files()
