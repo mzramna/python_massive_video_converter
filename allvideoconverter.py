@@ -9,10 +9,7 @@ import fnmatch
 
 
 class converter:
-    def __init__(self, extension_convert: str = "mkv", resolution: int = 480, codec: str = "h264_omx", fps: int = 24,
-                 crf: int = 20, preset: str = "slow", hwaccel="", threads=2, log_level=32, input_folder="./",output_folder="./convert/",
-                 resize_log="./resize.log",
-                 resized_log="./resized.log"):
+    def __init__(self, extension_convert: str = "mkv", resolution: int = 480, codec: str ="h264_omx", fps: int = 24,crf: int = 20, preset: str = "slow", hwaccel="", threads=2, log_level=32, input_folder="./",output_folder="./convert/",resize_log="./resize.log",resized_log="./resized.log"):
         self.resized_log = resized_log
         self.resize_log = resize_log
         self.input_folder = input_folder
@@ -43,6 +40,12 @@ class converter:
             self.ffmpeg_executable = "ffmpeg"
             if "arm" not in str(platform.machine()) and codec == "h264_omx":
                 self.codec = "h264"
+        #obligate de folder address ends with the so separator
+        if str(self.input_folder[-1]) != self.so_folder_separator:
+                self.input_folder=self.input_folder+self.so_folder_separator
+                
+        if str(self.output_folder[-1]) != self.so_folder_separator:
+                self.output_folder=self.output_folder+self.so_folder_separator
 
     def fill_files_list(self, folders=""):
         fileExtensions = ["webm", "flv", "vob", "ogg", "ogv", "drc", "gifv", "mng", "avi", "mov", "qt", "wmv", "yuv",
@@ -84,8 +87,8 @@ class converter:
             " ")
         check_dim.append(arquivo.path)
         dim = subprocess.run(check_dim, stdout=subprocess.PIPE)
-        dim = re.compile("\'(.*)\\\\r").findall(str(dim.stdout))[0]
-        # print(dim)
+        dim = re.compile("\'(.*)\\\\").findall(str(dim.stdout))[0]
+        #print(dim)
         return str(dim)
         
     def compare_audio_codec(self, arquivo,stream):
@@ -93,7 +96,7 @@ class converter:
             " ")
         check_dim.append(arquivo.path)
         dim = subprocess.run(check_dim, stdout=subprocess.PIPE)
-        dim = re.compile("\'(.*)\\\\r").findall(str(dim.stdout))[0]
+        dim = re.compile("\'(.*)\\\\").findall(str(dim.stdout))[0]
         # print(dim)
         return str(dim)
     
@@ -101,7 +104,7 @@ class converter:
         check_dim = str("ffprobe -v error -select_streams s:"+str(stream)+" -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1").split(" ")
         check_dim.append(arquivo.path)
         dim = subprocess.run(check_dim, stdout=subprocess.PIPE)
-        dim = re.compile("\'(.*)\\\\r").findall(str(dim.stdout))[0]
+        dim = re.compile("\'(.*)\\\\").findall(str(dim.stdout))[0]
         # print(dim)
         return str(dim)
 
@@ -131,9 +134,8 @@ class converter:
         return [n for n in fnmatch.filter(os.listdir(self.input_folder), pattern) if
         os.path.isfile(os.path.join(self.input_folder, n))]
     
-    def treat_file_name(self, arquivo, current_dir=False, no_hierarchy=False, debug=False):
-        fileExtensions = ["webm", "flv", "vob", "ogg", "ogv", "drc", "gifv", "mng", "avi", "mov", "qt", "wmv", "yuv",
-                          "rm", "rmvb", "asf", "amv", "mp4", "m4v", "mp\*", "m\?v", "svi", "3gp", "flv", "f4v", "mkv","divx"]
+    def treat_file_name(self, arquivo, current_dir=False, no_hierarchy=False, remove=False, debug=False):
+        fileExtensions = ["webm", "flv", "vob", "ogg", "ogv", "drc", "gifv", "mng", "avi", "mov", "qt", "wmv", "yuv","rm", "rmvb", "asf", "amv", "mp4", "m4v", "mp\*", "m\?v", "svi", "3gp", "flv", "f4v", "mkv","divx"]
 
         file_name_no_extension = os.path.splitext(arquivo.name)[0]
         extension = os.path.splitext(arquivo.name)[1][1:]
@@ -147,37 +149,28 @@ class converter:
             if relative_dir[-1] != self.so_folder_separator:
                 relative_dir=relative_dir+self.so_folder_separator
             relative_dir = relative_dir.replace(self.input_folder, "")
-            if relative_dir[0] == self.so_folder_separator:
-                relative_dir=relative_dir[1:]
+            if relative_dir!="":
+                if relative_dir[0] == self.so_folder_separator:
+                    relative_dir=relative_dir[1:]
             #print("relative_dir")
             ##make the specificities from combination of parameters of current_dir and no_hierarchy
             if not current_dir and not no_hierarchy:
                 ## this works when will not save into current dir and will respect the folder hierarchy from imput folder
                 #print("no current dir and hierarchy")
                 
-                if str(self.output_folder[-1]) != self.so_folder_separator:
-                    new_file_name = str(str(self.output_folder)+self.so_folder_separator + str(relative_dir) + str(file_name_no_extension))
-                    folder_to_create = str(self.output_folder) + self.so_folder_separator + str(relative_dir)
-                    if self.resized_log[:2]=="./":
-                        log_file_name = str(self.output_folder)+self.so_folder_separator +self.resized_log[2:]
-                else:
-                    new_file_name = str(str(self.output_folder) + str(relative_dir) + str(file_name_no_extension))
-                    folder_to_create = str(self.output_folder) + str(relative_dir)
-                    if self.resized_log[:2]=="./":
-                        log_file_name = str(self.output_folder) +self.resized_log[2:]
+            
+                new_file_name = str(str(self.output_folder) + str(relative_dir) + str(file_name_no_extension))
+                folder_to_create = str(self.output_folder) + str(relative_dir)
+                if self.resized_log[:2]=="./":
+                    log_file_name = str(self.output_folder) +self.resized_log[2:]
             elif not current_dir and no_hierarchy:
                 ## this works when will not save into current dir and will not respect the folder hierarchy from imput folder
                 #print("no current dir and no hierarchy")
-                if str(self.output_folder[-1]) != self.so_folder_separator:
-                    new_file_name = str(str(self.output_folder) + self.so_folder_separator + str(file_name_no_extension))
-                    folder_to_create = str(self.output_folder) + self.so_folder_separator
-                    if self.resized_log[:2]=="./":
-                        log_file_name = str(self.output_folder)+self.so_folder_separator +self.resized_log[2:]
-                else:
-                    new_file_name = str(str(self.output_folder) + str(file_name_no_extension))
-                    folder_to_create = str(self.output_folder) 
-                    if self.resized_log[:2]=="./":
-                        log_file_name = str(self.output_folder) +self.resized_log[2:]
+                
+                new_file_name = str(str(self.output_folder) + str(file_name_no_extension))
+                folder_to_create = str(self.output_folder) 
+                if self.resized_log[:2]=="./":
+                    log_file_name = str(self.output_folder) +self.resized_log[2:]
             elif current_dir and not no_hierarchy:
                 ## this works when will save into current dir and will respect the folder hierarchy from imput folder
                 #print("current dir and hierarchy")
@@ -194,10 +187,7 @@ class converter:
                 ## this works when will save into current dir and will not respect the folder hierarchy from imput folder
                 print("current dir and no hierarchy")
                 #relative_dir = relative_dir.replace(self.input_folder, "")
-                if str(self.input_folder[-1]) != self.so_folder_separator:
-                    new_file_name = str(os.getcwd()) + self.so_folder_separator + str(file_name_no_extension)
-                else:
-                    new_file_name = str(os.getcwd()) + str(file_name_no_extension)
+                new_file_name = str(os.getcwd()) + str(file_name_no_extension)
                 folder_to_create = ""
                 log_file_name = self.resized_log
             #print(folder_to_create)
@@ -243,10 +233,9 @@ class converter:
             same_extension = False
             converted = False
             relative_dir = ""
-
-        return {"file_name_no_extension": file_name_no_extension, "extension": extension, "convertable": convertable,
-                "relative_dir": relative_dir, "new_file_name": new_file_name, "same_extension": same_extension,
-                "folder_to_create": folder_to_create, "converted": converted,"log_file_name":log_file_name}
+        if converted and remove:
+            os.remove(arquivo)
+        return {"file_name_no_extension": file_name_no_extension, "extension": extension, "convertable": convertable,"relative_dir": relative_dir, "new_file_name": new_file_name, "same_extension": same_extension,"folder_to_create": folder_to_create, "converted": converted,"log_file_name":log_file_name}
 
     def log_error_files(self, error_log_file="./error.log"):
         file = open(error_log_file, "a")
@@ -256,8 +245,7 @@ class converter:
                     file.write(str(key) + ";" + str(error.path) + "\n")
         file.close()
 
-    def create_command(self, arquivo, array=False, resize=False, current_dir=False, no_hierarchy=False,
-                       force_change_fps=False, debug=False):
+    def create_command(self, arquivo, array=False, resize=False, current_dir=False, no_hierarchy=False,force_change_fps=False, debug=False):
         subtitle_srt=["srt","ass","ssa"]
         subtitle_bitmap=["hdmv_pgs_subtitle","mov_text"]
         name_data = self.treat_file_name(arquivo, current_dir=current_dir, no_hierarchy=no_hierarchy, debug=debug)
@@ -296,71 +284,76 @@ class converter:
         if self.hwaccel == "qsv":
             command.append("-load_plugin")
             command.append("hevc_hw")
-        resize_command = ["-crf", str(self.crf), "-preset", self.preset]
-
+        resize_command = []
+        #if used crf the resize parameters of bitrate are not necessary
+        #but accord to official youtube data the bitrate used in resize parameters are 
+        #the best for any situation
         change_fps = False
-
-        if resize:
-
+        if not resize:
+            resize_command.append("-crf")
+            resize_command.append(str(self.crf))
+            resize_command.append("-preset")
+            resize_command.append(self.preset)
+        else:
             if not name_data["converted"] or debug:
                 small = False
                 out_scale = False
                 if self.resolution == 240:
+                    resize_command.append("-b:v")
+                    resize_command.append("500k")
+                    resize_command.append("-minrate")
+                    resize_command.append("300k")
+                    resize_command.append("-maxrate")
+                    resize_command.append("700k")
                     if self.compare_resolution(arquivo, 426, 240):
-                        resize_command.append("-b:v")
-                        resize_command.append("500k")
-                        resize_command.append("-minrate")
-                        resize_command.append("300k")
-                        resize_command.append("-maxrate")
-                        resize_command.append("700k")
                         resize_command.append("-s")
                         resize_command.append("426x240")  # determina a escala do arquivo para 480p
                     else:
                         small = True
                 elif self.resolution == 360:
+                    resize_command.append("-b:v")
+                    resize_command.append("600k")
+                    resize_command.append("-minrate")
+                    resize_command.append("400k")
+                    resize_command.append("-maxrate")
+                    resize_command.append("1000k")
                     if self.compare_resolution(arquivo, 640, 320):
-                        resize_command.append("-b:v")
-                        resize_command.append("600k")
-                        resize_command.append("-minrate")
-                        resize_command.append("400k")
-                        resize_command.append("-maxrate")
-                        resize_command.append("1000k")
                         resize_command.append("-s")
                         resize_command.append("640x320")  # determina a escala do arquivo para 480p
                     else:
                         small = True
                 elif self.resolution == 480:
+                    resize_command.append("-b:v")
+                    resize_command.append("1000k")
+                    resize_command.append("-minrate")
+                    resize_command.append("500k")
+                    resize_command.append("-maxrate")
+                    resize_command.append("2000k")
                     if self.compare_resolution(arquivo, 854, 480):
-                        resize_command.append("-b:v")
-                        resize_command.append("1000k")
-                        resize_command.append("-minrate")
-                        resize_command.append("500k")
-                        resize_command.append("-maxrate")
-                        resize_command.append("2000k")
                         resize_command.append("-s")
                         resize_command.append("854x480")  # determina a escala do arquivo para 480p
                     else:
                         small = True
                 elif self.resolution == 720:
+                    resize_command.append("-b:v")
+                    resize_command.append("3300k")
+                    resize_command.append("-minrate")
+                    resize_command.append("1500k")
+                    resize_command.append("-maxrate")
+                    resize_command.append("6000k")
                     if self.compare_resolution(arquivo, 1280, 720):
-                        resize_command.append("-b:v")
-                        resize_command.append("3300k")
-                        resize_command.append("-minrate")
-                        resize_command.append("1500k")
-                        resize_command.append("-maxrate")
-                        resize_command.append("6000k")
                         resize_command.append("-s")
                         resize_command.append("1280x720")  # determina a escala do arquivo para 720p
                     else:
                         small = True
                 elif self.resolution == 1080:
+                    resize_command.append("-b:v")
+                    resize_command.append("4000k")
+                    resize_command.append("-minrate")
+                    resize_command.append("3000k")
+                    resize_command.append("-maxrate")
+                    resize_command.append("9000k")
                     if self.compare_resolution(arquivo, 1920, 1080):
-                        resize_command.append("-b:v")
-                        resize_command.append("4000k")
-                        resize_command.append("-minrate")
-                        resize_command.append("3000k")
-                        resize_command.append("-maxrate")
-                        resize_command.append("9000k")
                         resize_command.append("-s")
                         resize_command.append("1920x1080")  # determina a escala do arquivo para 1080p
                     else:
@@ -402,9 +395,8 @@ class converter:
                 retorno += comand + " "
             return retorno
 
-    def convert_video(self, arquivo, resize=False, remove=False, process=False, current_dir=False, no_hierarchy=False,
-                      force_change_fps=False, debug=False, working_log="./working.log"):
-        name_data = self.treat_file_name(arquivo, current_dir=current_dir, no_hierarchy=no_hierarchy, debug=debug)
+    def convert_video(self, arquivo, resize=False, remove=False, process=False, current_dir=False, no_hierarchy=False,force_change_fps=False, debug=False, working_log="./working.log"):
+        name_data = self.treat_file_name(arquivo, current_dir=current_dir, no_hierarchy=no_hierarchy,remove=remove, debug=debug)
         if not name_data["convertable"] or (name_data["converted"] and not debug) or (
                 name_data["extension"] == self.extension_convert and not resize):
             return 0
@@ -413,8 +405,7 @@ class converter:
             os.makedirs(name_data["folder_to_create"])
         except:
             pass
-        command = self.create_command(arquivo, array=True, resize=resize, current_dir=current_dir, debug=debug,
-                                      force_change_fps=force_change_fps, no_hierarchy=no_hierarchy)
+        command = self.create_command(arquivo, array=True, resize=resize, current_dir=current_dir, debug=debug,force_change_fps=force_change_fps, no_hierarchy=no_hierarchy)
         if command == "" or (name_data["converted"] and not debug):
             return 0
 
@@ -458,8 +449,7 @@ class converter:
             retorno = {"process": processo, "aquivo": arquivo}
             return retorno
 
-    def convert_all_files_sequential(self, resize=False, remove=False, current_dir=False, no_hierarchy=False,
-                                     force_change_fps=False, debug=False):
+    def convert_all_files_sequential(self, resize=False, remove=False, current_dir=False, no_hierarchy=False,force_change_fps=False, debug=False):
         if self.files != []:
             for file in self.files:
                 tmp = self.convert_video(file, resize=resize, remove=remove, process=False, current_dir=current_dir,
@@ -476,8 +466,7 @@ class converter:
         else:
             print(self.results)
 
-    def convert_multiple_video(self, multiple=2, resize=False, current_dir=False, no_hierarchy=False, remove=False,
-                               force_change_fps=False, debug=False, working_log="./working.log"):
+    def convert_multiple_video(self, multiple=2, resize=False, current_dir=False, no_hierarchy=False, remove=False,force_change_fps=False, debug=False, working_log="./working.log"):
         processes = []
         file_index = 0
         while True:
