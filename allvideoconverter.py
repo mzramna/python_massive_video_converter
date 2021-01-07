@@ -10,6 +10,23 @@ import contextlib
 
 class converter:
     def __init__(self, extension_convert: str = "mkv", resolution: int = 480, codec: str ="h264_omx", fps: int = 24,crf: int = 20, preset: str = "slow", hwaccel="", threads=2, log_level=32, input_folder="./",output_folder="./convert/",resize_log="./resize.log",resized_log="./resized.log"):
+        '''
+        class to convert huge amount of video files to same size,codec and other parameters specified below
+
+        :param extension_convert: extension used in output file
+        :param resolution: output resolution
+        :param codec:output codec,default will be h264,works in raspberry pi as default
+        :param fps:output fps,only tested with values below input file fps,not recomended use fps bigger than input file
+        :param crf: Constant Rate Factor,defined in some codecs of ffmpeg, as said in:https://trac.ffmpeg.org/wiki/Encode/H.264
+        :param preset: preset for ffmpeg to use with some codecs,as specified in: https://trac.ffmpeg.org/wiki/Encode/H.264
+        :param hwaccel: hardware acceleration,as defined in: https://trac.ffmpeg.org/wiki/HWAccelIntro
+        :param threads: number of threads used in ffmpeg when in cpu mode
+        :param log_level: log level of ffmpeg as specified in: https://ffmpeg.org/ffmpeg.html#Generic-options
+        :param input_folder: folder where will gather the video files
+        :param output_folder: folder where the output files will be saved
+        :param resize_log: the log file that informs all the converted files that ends correctly,if deleted or moved from the informed dir,it will restart all the conversion process
+        :param resized_log: the redundant log file that informs all the converted files that ends correctly,if deleted or moved from the informed dir,it will restart all the conversion process
+        '''
         self.resized_log = resized_log
         self.resize_log = resize_log
         self.input_folder = input_folder
@@ -47,28 +64,16 @@ class converter:
         if str(self.output_folder[-1]) != self.so_folder_separator:
                 self.output_folder=self.output_folder+self.so_folder_separator
 
-    def unbuffered(self,proc,stream='stdout'):
-        newlines = ['\n', '\r\n', '\r']
-        stream = getattr(proc, stream)
-        with contextlib.closing(stream):
-            while True:
-                out = []
-                last = stream.read(1)
-                # Don't loop forever
-                if last == '' and proc.poll() is not None:
-                    break
-                while last not in newlines:
-                    if last == '' and proc.poll() is not None:# Don't loop forever
-                        break
-                    out.append(last)
-                    last = stream.read(1)
-                out = ''.join(out)
-                yield out
-
-    def treat_console_out(self,result):
+    def treat_console_out(self, console_popen:subprocess.Popen):
+        '''
+            this treat the console output to show better output
+        :param console_popen: subprocess.popen process where the console log will be get
+        :return: return in case of error,the error code from ffmpeg
+        '''
         number_of_frames=0
         error=0
-        for line in iter(result.stdout.readline, b''):
+        line_nun=0
+        for line in iter(console_popen.stdout.readline, b''):
             if "frame" in line and "fps" in line and "q" in line and "size"in line and "time"in line and "bitrate"in line and "speed"in line :
                 '''frame= 2246 fps=748 q=15.0 size=   23365kB time=00:01:33.97 bitrate=2036.9kbits/s speed=31.3x'''
                 #print(number_of_frames)
@@ -122,7 +127,7 @@ class converter:
                 error+=1
                 print(str(error)+line)
             elif "Conversion failed" in line:
-                result.kill()
+                console_popen.kill()
                 return 1
             elif len(line)>0 and line[-1]!="\r" :
                 if line[-1]=="\n":
@@ -133,6 +138,10 @@ class converter:
             #line_nun+=1
 
     def fill_files_list(self, folders=""):
+        '''
+            search the media files in folder ,used also to update if any change happend
+        :param folders: folder where will be searched,works with more than just the input folder
+        '''
         fileExtensions = ["webm", "flv", "vob", "ogg", "ogv", "drc", "gifv", "mng", "avi", "mov", "qt", "wmv", "yuv",
                           "rm", "rmvb", "asf", "amv", "mp4", "m4v", "mp\*", "m\?v", "svi", "3gp", "flv", "f4v", "mkv","divx"]
         if folders == "":
@@ -148,6 +157,11 @@ class converter:
             self.fill_files_list(folders=dir_data["dirs"])
 
     def list_content_folder(self, path):
+        '''
+            get the folders and files in some path as an dict
+        :param path: folder where the data will be gether
+        :return: dict with the dirs and files
+        '''
         retorno = {}
         retorno["starting_path"] = path
         retorno["dirs"] = []
@@ -159,72 +173,113 @@ class converter:
                 retorno["dirs"].append(entry)
         return retorno
 
-    def get_video_time(self,arquivo):
-        ""
-        check_dim = "ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1".split(
+    def get_video_time(self, File):
+        '''
+            get the time in seconds from the select file
+        :param File: media file that will be analyzed
+        :return: time in seconds,return a float value,so it is very precize
+        '''
+        check_dim = "ffprobe -v quiet -show_entries format=duration -of default=noprint_wrappers=1:nokey=1".split(
             " ")
-        check_dim.append(arquivo.path)
+        check_dim.append(File.path)
         dim = subprocess.run(check_dim, stdout=subprocess.PIPE)
         if dim.returncode !=0:
-            return int(dim.returncode)
+            return ("error",int(dim.returncode))
         dim = re.compile("\'(.*)\\\\").findall(str(dim.stdout))[0]
         #print(dim)
         return float(dim)
 
-    def get_video_codec(self, arquivo):
-        check_dim = "ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1".split(
+    def get_video_codec(self, File,stream:int=0):
+        '''
+            get the video codec from the media file
+        :param File: media file that will be analyzed
+        :param stream: stream wich will be extracted
+        :return: the codec from the video selected
+        '''
+        check_dim = str("ffprobe -v quiet -select_streams v:"+stream+" -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1").split(
             " ")
-        check_dim.append(arquivo.path)
+        check_dim.append(File.path)
         dim = subprocess.run(check_dim, stdout=subprocess.PIPE)
         if dim.returncode !=0:
-            return int(dim.returncode)
+            return ("error",int(dim.returncode))
         dim = re.compile("\'(.*)\\\\").findall(str(dim.stdout))[0]
         #print(dim)
         return str(dim)
 
-    def get_audio_codec(self, arquivo,stream):
-        check_dim = str("ffprobe -v error -select_streams a:"+str(stream)+" -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1").split(
+    def get_audio_codec(self, File, stream:int=0):
+        '''
+            get the audio codec from selected stream in file
+        :param File:media file that will be analyzed
+        :param stream: stream wich will be extracted
+        :return: the codec from the video selected
+        '''
+        check_dim = str("ffprobe -v quiet -select_streams a:"+str(stream)+" -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1").split(
             " ")
-        check_dim.append(arquivo.path)
+        check_dim.append(File.path)
         dim = subprocess.run(check_dim, stdout=subprocess.PIPE)
         if dim.returncode !=0:
-            return int(dim.returncode)
+            return ("error",int(dim.returncode))
         dim = re.compile("\'(.*)\\\\").findall(str(dim.stdout))[0]
         # print(dim)
         return str(dim)
 
-    def get_subtitle_codec(self, arquivo,stream):
-        check_dim = str("ffprobe -v error -select_streams s:"+str(stream)+" -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1").split(" ")
-        check_dim.append(arquivo.path)
+    def get_subtitle_codec(self, File, stream:int=0):
+        '''
+            get the subtitle codec from selected stream in file
+        :param File:media file that will be analyzed
+        :param stream: stream wich will be extracted
+        :return: the codec from the subtitle selected
+        '''
+        check_dim = str("ffprobe -v quiet -select_streams s:"+str(stream)+" -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1").split(" ")
+        check_dim.append(File.path)
         dim = subprocess.run(check_dim, stdout=subprocess.PIPE)
         if dim.returncode !=0:
-            return int(dim.returncode)
+            return ("error",int(dim.returncode))
         dim = re.compile("\'(.*)\\\\").findall(str(dim.stdout))[0]
         # print(dim)
         return str(dim)
 
-    def get_resolution(self, arquivo):
-        check_dim = "ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0".split(" ")
-        check_dim.append(arquivo.path)
+    def get_resolution(self, File, stream:int=0):
+        '''
+            get the resolution from selected stream in file
+        :param File:media file that will be analyzed
+        :param stream: stream wich will be extracted
+        :return: the resolution from the subtitle selected in an dict {x:,y:}
+        '''
+        check_dim = str("ffprobe -v quiet -select_streams v:"+stream+" -show_entries stream=width,height -of csv=p=0").split(" ")
+        check_dim.append(File.path)
         dim = subprocess.run(check_dim, stdout=subprocess.PIPE)
         if dim.returncode !=0:
-            return int(dim.returncode)
+            return ("error",int(dim.returncode))
         dim = re.compile("(\d+\,\d+)").findall(str(dim.stdout))[0].split(",")
         # print(dim)
         dim={"x":dim[0],"y":dim[1]}
         return dim
 
-    def get_fps(self, arquivo):
-        check_fps = "ffprobe -v error -select_streams v -of default=noprint_wrappers=1:nokey=1 -show_entries stream=r_frame_rate".split(" ")
-        check_fps.append(arquivo.path)
+    def get_fps(self, File, stream:int=0):
+        '''
+            get the resolution from selected stream in file
+        :param File:media file that will be analyzed
+        :param stream: stream wich will be extracted
+        :return: the resolution from the subtitle selected in an dict {x:,y:}
+        '''
+        check_fps = str("ffprobe -v quiet -select_streams v:"+stream+" -of default=noprint_wrappers=1:nokey=1 -show_entries stream=r_frame_rate").split(" ")
+        check_fps.append(File.path)
         dim = subprocess.run(check_fps, stdout=subprocess.PIPE)
         if dim.returncode !=0:
-            return int(dim.returncode)
+            return ("error",int(dim.returncode))
         dim = re.compile("(\d+\/\d+)").findall(str(dim.stdout))[0].split("/")
         dim = int(dim[0]) / int(dim[1])
         return dim
 
     def command_to_array(self, command, aditional_data=[], previous_array=[]):
+        '''
+            convert the string to an array of words to use in a subprocess call
+        :param command: string wich will be turned into array
+        :param aditional_data: array with posterior parameters in array form to sum them to the result array,will be inserted after the string
+        :param previous_array: array with previous parameters in array form to sum them to the result array,will be inserted before the string
+        :return:
+        '''
         result = previous_array
         for command in command.split(" "):
             result.append(command)
@@ -232,13 +287,19 @@ class converter:
             result.append(aditional)
         return result
 
-
-    def compare_resolution(self, arquivo, width: int, height: int):
-        check_dim = "ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0".split(" ")
-        check_dim.append(arquivo.path)
+    def compare_resolution(self, File, width: int, height: int, stream:int=0):
+        '''
+            verify if the file resolution is smaller than the parsed values 
+        :param File:
+        :param width:
+        :param height:
+        :return:
+        '''
+        check_dim = str("ffprobe -v quiet -select_streams v:"+stream+" -show_entries stream=width,height -of csv=p=0").split(" ")
+        check_dim.append(File.path)
         dim = subprocess.run(check_dim, stdout=subprocess.PIPE)
         if dim.returncode !=0:
-            return int(dim.returncode)
+            return ("error",int(dim.returncode))
         dim = re.compile("(\d+\,\d+)").findall(str(dim.stdout))[0].split(",")
         # print(dim)
         if int(dim[0]) > width or int(dim[1]) > height:
@@ -246,12 +307,18 @@ class converter:
         else:
             return False
 
-    def compare_fps(self, arquivo, fps):
-        check_fps = "ffprobe -v error -select_streams v -of default=noprint_wrappers=1:nokey=1 -show_entries stream=r_frame_rate".split(" ")
+    def compare_fps(self, arquivo, fps,stream:int=0):
+        '''
+
+        :param arquivo:
+        :param fps:
+        :return:
+        '''
+        check_fps = str("ffprobe -v quiet -select_streams v:"+stream+" -of default=noprint_wrappers=1:nokey=1 -show_entries stream=r_frame_rate").split(" ")
         check_fps.append(arquivo.path)
         dim = subprocess.run(check_fps, stdout=subprocess.PIPE)
         if dim.returncode !=0:
-            return int(dim.returncode)
+            return ("error",int(dim.returncode))
         dim = re.compile("(\d+\/\d+)").findall(str(dim.stdout))[0].split("/")
         dim = int(dim[0]) / int(dim[1])
         if dim > fps:
@@ -259,11 +326,25 @@ class converter:
         return False
     
     def find_files(self,pattern):
+        '''
+
+        :param pattern:
+        :return:
+        '''
         '''Return list of files matching pattern in base folder.'''
         return [n for n in fnmatch.filter(os.listdir(self.input_folder), pattern) if
         os.path.isfile(os.path.join(self.input_folder, n))]
     
     def treat_file_name(self, arquivo, current_dir=False, no_hierarchy=False, remove=False, debug=False):
+        '''
+
+        :param arquivo:
+        :param current_dir:
+        :param no_hierarchy:
+        :param remove:
+        :param debug:
+        :return:
+        '''
         fileExtensions = ["webm", "flv", "vob", "ogg", "ogv", "drc", "gifv", "mng", "avi", "mov", "qt", "wmv", "yuv","rm", "rmvb", "asf", "amv", "mp4", "m4v", "mp\*", "m\?v", "svi", "3gp", "flv", "f4v", "mkv","divx"]
 
         file_name_no_extension = os.path.splitext(arquivo.name)[0]
@@ -373,6 +454,11 @@ class converter:
         return {"file_name_no_extension": file_name_no_extension, "extension": extension, "convertable": convertable,"relative_dir": relative_dir, "new_file_name": new_file_name, "same_extension": same_extension,"folder_to_create": folder_to_create, "converted": converted,"log_file_name":log_file_name}
 
     def log_error_files(self, error_log_file="./error.log"):
+        '''
+
+        :param error_log_file:
+        :return:
+        '''
         file = open(error_log_file, "a")
         for key in self.results.keys():
             if key != 0:
@@ -381,6 +467,17 @@ class converter:
         file.close()
 
     def create_command(self, arquivo, array=False, resize=False, current_dir=False, no_hierarchy=False,force_change_fps=False, debug=False):
+        '''
+
+        :param arquivo:
+        :param array:
+        :param resize:
+        :param current_dir:
+        :param no_hierarchy:
+        :param force_change_fps:
+        :param debug:
+        :return:
+        '''
         subtitle_srt=["srt","ass","ssa"]
         subtitle_bitmap=["dvdsub", "dvd_subtitle", "pgssub", "hdmv_pgs_subtitle"]
         name_data = self.treat_file_name(arquivo, current_dir=current_dir, no_hierarchy=no_hierarchy, debug=debug)
@@ -537,6 +634,19 @@ class converter:
             return retorno
 
     def convert_video(self, arquivo, resize=False, remove=False, process=False, current_dir=False, no_hierarchy=False,force_change_fps=False, debug=False, working_log="./working.log"):
+        '''
+
+        :param arquivo:
+        :param resize:
+        :param remove:
+        :param process:
+        :param current_dir:
+        :param no_hierarchy:
+        :param force_change_fps:
+        :param debug:
+        :param working_log:
+        :return:
+        '''
         name_data = self.treat_file_name(arquivo, current_dir=current_dir, no_hierarchy=no_hierarchy,remove=remove, debug=debug)
         if not name_data["convertable"] or (name_data["converted"] and not debug) or (
                 name_data["extension"] == self.extension_convert and not resize):
@@ -597,6 +707,16 @@ class converter:
             return retorno
 
     def convert_all_files_sequential(self, resize=False, remove=False, current_dir=False, no_hierarchy=False,force_change_fps=False, debug=False):
+        '''
+
+        :param resize:
+        :param remove:
+        :param current_dir:
+        :param no_hierarchy:
+        :param force_change_fps:
+        :param debug:
+        :return:
+        '''
         if self.files != []:
             for file in self.files:
                 tmp = self.convert_video(file, resize=resize, remove=remove, process=False, current_dir=current_dir,
@@ -614,6 +734,18 @@ class converter:
             print(self.results)
 
     def convert_multiple_video(self, multiple=2, resize=False, current_dir=False, no_hierarchy=False, remove=False,force_change_fps=False, debug=False, working_log="./working.log"):
+        '''
+
+        :param multiple:
+        :param resize:
+        :param current_dir:
+        :param no_hierarchy:
+        :param remove:
+        :param force_change_fps:
+        :param debug:
+        :param working_log:
+        :return:
+        '''
         processes = []
         file_index = 0
         while True:
@@ -682,16 +814,35 @@ class converter_identifier(converter):
     from json import JSONDecoder
     import urllib
     def __init__(self,imdb_api_key, extension_convert: str = "mkv", resolution: int = 480, codec: str = "h264_omx", fps: int = 24,crf: int = 20, preset: str = "slow", hwaccel="", threads=2, log_level=32, input_folder="./",output_folder="./convert/", resize_log="./resize.log", resized_log="./resized.log"):
+        '''
+
+        :param imdb_api_key:
+        :param extension_convert:
+        :param resolution:
+        :param codec:
+        :param fps:
+        :param crf:
+        :param preset:
+        :param hwaccel:
+        :param threads:
+        :param log_level:
+        :param input_folder:
+        :param output_folder:
+        :param resize_log:
+        :param resized_log:
+        '''
         super().__init__(extension_convert, resolution, codec, fps,
                  crf, preset, hwaccel, threads, log_level, input_folder,
                  output_folder, resize_log, resized_log)
         self.tmdb.API_KEY=imdb_api_key
 
     def collect_stream_metadata(self,filename):
-        """
+        '''
         Returns a list of streams' metadata present in the media file passed as
         the argument (filename)
-        """
+        :param filename:
+        :return:
+        '''
         command = 'ffprobe -i "{}" -show_streams -of json'.format(filename)
         args = self.shlex.split(command)
         p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -703,6 +854,17 @@ class converter_identifier(converter):
         return json_data
 
     def create_command(self, arquivo, array=False, resize=False, current_dir=False, no_hierarchy=False,force_change_fps=False, debug=False):
+        '''
+
+        :param arquivo:
+        :param array:
+        :param resize:
+        :param current_dir:
+        :param no_hierarchy:
+        :param force_change_fps:
+        :param debug:
+        :return:
+        '''
         avaliable_metadatas={"mp4":["title","author","album_artist","album","grouping","composer","year","track","comment","copyright","show","episode_id","network","lyrics"],
                              "m4v": ["title", "author", "album_artist", "album", "grouping", "composer", "year",
                                              "track", "comment", "copyright", "show", "episode_id", "network",
@@ -836,6 +998,19 @@ class converter_identifier(converter):
             return retorno
 
     def convert_video(self, arquivo, resize=False, remove=False, process=False, current_dir=False, no_hierarchy=False,force_change_fps=False, debug=False, working_log="./working.log"):
+        '''
+
+        :param arquivo:
+        :param resize:
+        :param remove:
+        :param process:
+        :param current_dir:
+        :param no_hierarchy:
+        :param force_change_fps:
+        :param debug:
+        :param working_log:
+        :return:
+        '''
         name_data = self.treat_file_name(arquivo, current_dir=current_dir, no_hierarchy=no_hierarchy,remove=remove, debug=debug)
         if not name_data["convertable"] or (name_data["converted"] and not debug) or (
                 name_data["extension"] == self.extension_convert and not resize):
@@ -897,6 +1072,16 @@ class converter_identifier(converter):
             return retorno
 
     def convert_all_files_sequential(self, resize=False, remove=False, current_dir=False, no_hierarchy=False,force_change_fps=False, debug=False):
+        '''
+
+        :param resize:
+        :param remove:
+        :param current_dir:
+        :param no_hierarchy:
+        :param force_change_fps:
+        :param debug:
+        :return:
+        '''
         if self.files != []:
             for file in self.files:
                 tmp = self.convert_video(file, resize=resize, remove=remove, process=False, current_dir=current_dir,

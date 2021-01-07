@@ -1,16 +1,18 @@
-from allvideoconverter_linux import converter
+from allvideoconverter import converter
 import datetime
-tester=converter()
+
+tester = converter()
 tester.fill_files_list()
-totalTime=0
+totalTime = 0
 for File in tester.files:
     try:
-        tmp=tester.get_video_time(File)
-        if isinstance(subtitle_codec,float):
-            totalTime+=tmp
+        tmp = tester.get_video_time(File)
+        if isinstance(tmp, float):
+            print(str(tmp) + " " + str(File.name))
+            totalTime += tmp
     except:
-        tmp=0
+        tmp = 0
 
-        
-totalTime=datetime.timedelta(seconds=totalTime)
+print(totalTime)
+totalTime = datetime.timedelta(seconds=int(totalTime))
 print(totalTime)
