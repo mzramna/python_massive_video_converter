@@ -65,6 +65,72 @@ class converter:
                 out = ''.join(out)
                 yield out
 
+    def treat_console_out(self,result):
+        number_of_frames=0
+        error=0
+        for line in iter(result.stdout.readline, b''):
+            if "frame" in line and "fps" in line and "q" in line and "size"in line and "time"in line and "bitrate"in line and "speed"in line :
+                '''frame= 2246 fps=748 q=15.0 size=   23365kB time=00:01:33.97 bitrate=2036.9kbits/s speed=31.3x'''
+                #print(number_of_frames)
+                try:
+                    search=re.search(r'frame=\D*(\d*)\D*fps=\D*(\d*)\D*q=\D*([\d\.]*)\D*size=\D*(\d*)\D*time=\D*(.*?)bitrate=\D*([\d\.kmg]*)*bits\/s\D*speed=\D*([\d\.]*)\D*',line)
+                    try:
+                        frame=int(search.group(1))
+                    except:
+                        frame=int(re.search(r'frame=\D*(\d+)\D*=',line).group(1))
+                    try:
+                        fps=int(search.group(2))
+                    except:
+                        fps=int(re.search(r'fps=\D*(\d+)\D*=',line).group(1))
+                    try:
+                        quality=float(search.group(3))
+                    except:
+                        quality=float(re.search(r'q=\D*([\d\.]+)\D*=',line).group(1))
+                    try:
+                        size=int(search.group(4))
+                    except:
+                        size=int(re.search(r'size=\D*(\d+)\D*=',line).group(1))
+                    try:
+                        time=search.group(5)
+                    except:
+                        time=re.search(r'time=\D*(.*?)bitrate',line).group(1)
+                    try:
+                        bitrate=search.group(6)
+                    except:
+                        bitrate=re.search(r'bitrate=\D*([\d\.kmg]+)*bits\/s\D*=',line).group(1)
+                    try:
+                        speed=float(search.group(7))
+                    except:
+                        speed=float(re.search(r'speed=\D*([\d\.]*)\D*',line).group(1))
+                    conclusion=int((number_of_frames*int(frame))/100)
+                    try:
+                        eta=int((number_of_frames-int(frame))/int(fps))
+                    except:
+                        eta="nan"
+                    out=str(str(line_nun)+str(conclusion)+"    eta="+str(eta)+"s  quality="+str(quality)+"  speed="+str(speed))
+                    print(out,end="\r")
+                except:
+                    print(str(search),end="\r")
+            elif "NUMBER_OF_FRAMES"in line:
+                #print(str(line_nun)+str(line.rstrip()))
+                frames=re.search(r'NUMBER_OF_FRAMES\D*(\d+).*',line)
+                try:
+                    number_of_frames=int(frames.group(1))
+                except:
+                    pass
+            elif "Error" in line:
+                error+=1
+                print(str(error)+line)
+            elif "Conversion failed" in line:
+                result.kill()
+                return 1
+            elif len(line)>0 and line[-1]!="\r" :
+                if line[-1]=="\n":
+                    print(str(line[:-1]))
+                else:
+                    print(str(line))
+                pass
+            #line_nun+=1
 
     def fill_files_list(self, folders=""):
         fileExtensions = ["webm", "flv", "vob", "ogg", "ogv", "drc", "gifv", "mng", "avi", "mov", "qt", "wmv", "yuv",
@@ -93,15 +159,19 @@ class converter:
                 retorno["dirs"].append(entry)
         return retorno
 
-    def command_to_array(self, command, aditional_data=[], previous_array=[]):
-        result = previous_array
-        for command in command.split(" "):
-            result.append(command)
-        for aditional in aditional_data:
-            result.append(aditional)
-        return result
+    def get_video_time(self,arquivo):
+        ""
+        check_dim = "ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1".split(
+            " ")
+        check_dim.append(arquivo.path)
+        dim = subprocess.run(check_dim, stdout=subprocess.PIPE)
+        if dim.returncode !=0:
+            return int(dim.returncode)
+        dim = re.compile("\'(.*)\\\\").findall(str(dim.stdout))[0]
+        #print(dim)
+        return float(dim)
 
-    def compare_video_codec(self, arquivo):
+    def get_video_codec(self, arquivo):
         check_dim = "ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1".split(
             " ")
         check_dim.append(arquivo.path)
@@ -111,8 +181,8 @@ class converter:
         dim = re.compile("\'(.*)\\\\").findall(str(dim.stdout))[0]
         #print(dim)
         return str(dim)
-        
-    def compare_audio_codec(self, arquivo,stream):
+
+    def get_audio_codec(self, arquivo,stream):
         check_dim = str("ffprobe -v error -select_streams a:"+str(stream)+" -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1").split(
             " ")
         check_dim.append(arquivo.path)
@@ -122,8 +192,8 @@ class converter:
         dim = re.compile("\'(.*)\\\\").findall(str(dim.stdout))[0]
         # print(dim)
         return str(dim)
-    
-    def compare_subtitle_codec(self, arquivo,stream):
+
+    def get_subtitle_codec(self, arquivo,stream):
         check_dim = str("ffprobe -v error -select_streams s:"+str(stream)+" -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1").split(" ")
         check_dim.append(arquivo.path)
         dim = subprocess.run(check_dim, stdout=subprocess.PIPE)
@@ -132,6 +202,36 @@ class converter:
         dim = re.compile("\'(.*)\\\\").findall(str(dim.stdout))[0]
         # print(dim)
         return str(dim)
+
+    def get_resolution(self, arquivo):
+        check_dim = "ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0".split(" ")
+        check_dim.append(arquivo.path)
+        dim = subprocess.run(check_dim, stdout=subprocess.PIPE)
+        if dim.returncode !=0:
+            return int(dim.returncode)
+        dim = re.compile("(\d+\,\d+)").findall(str(dim.stdout))[0].split(",")
+        # print(dim)
+        dim={"x":dim[0],"y":dim[1]}
+        return dim
+
+    def get_fps(self, arquivo):
+        check_fps = "ffprobe -v error -select_streams v -of default=noprint_wrappers=1:nokey=1 -show_entries stream=r_frame_rate".split(" ")
+        check_fps.append(arquivo.path)
+        dim = subprocess.run(check_fps, stdout=subprocess.PIPE)
+        if dim.returncode !=0:
+            return int(dim.returncode)
+        dim = re.compile("(\d+\/\d+)").findall(str(dim.stdout))[0].split("/")
+        dim = int(dim[0]) / int(dim[1])
+        return dim
+
+    def command_to_array(self, command, aditional_data=[], previous_array=[]):
+        result = previous_array
+        for command in command.split(" "):
+            result.append(command)
+        for aditional in aditional_data:
+            result.append(aditional)
+        return result
+
 
     def compare_resolution(self, arquivo, width: int, height: int):
         check_dim = "ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0".split(" ")
@@ -305,7 +405,7 @@ class converter:
                              self.codec, "-map_metadata", "0", "-pix_fmt", "yuv420p",
                              "-threads", str(self.threads),"-copy_unknown"]
         try:
-            subtitle_codec=self.compare_subtitle_codec(arquivo,0)
+            subtitle_codec=self.get_subtitle_codec(arquivo,0)
             if isinstance(subtitle_codec,int):
                 return ""
             elif subtitle_codec in subtitle_srt:
@@ -412,7 +512,7 @@ class converter:
         if force_change_fps and not change_fps:
             command.append("-filter:v")
             command.append("fps=fps=" + str(self.fps))
-        compared_codec=self.compare_video_codec(arquivo)
+        compared_codec=self.get_video_codec(arquivo)
         if isinstance(compared_codec,int):
             return ""
         elif compared_codec == "mpeg4" and "h26" in self.codec :
@@ -474,11 +574,17 @@ class converter:
                     #shutil.move(name_data["new_file_name"]+".tmp",
                     #            str(name_data["relative_dir"]) + str(
                     #                name_data["file_name_no_extension"]) + "." + self.extension_convert)
-                    shutil.move(name_data["new_file_name"],
+                    try:
+                        shutil.move(name_data["new_file_name"],
                                 str(name_data["relative_dir"]) + str(
                                     name_data["file_name_no_extension"]) + "." + self.extension_convert)
+                    except:
+                        pass
                 else:
-                    os.remove(str(arquivo.path))
+                    try:
+                        os.remove(str(arquivo.path))
+                    except:
+                        pass
             elif result.returncode == 1 and name_data["new_file_name"] != "":
                 try:
                     os.remove(str(name_data["new_file_name"]+".tmp"))
@@ -596,9 +702,7 @@ class converter_identifier(converter):
 
         return json_data
 
-    def create_command(self, arquivo, array=False, resize=False, current_dir=False, no_hierarchy=False,
-                       force_change_fps=False, debug=False):
-
+    def create_command(self, arquivo, array=False, resize=False, current_dir=False, no_hierarchy=False,force_change_fps=False, debug=False):
         avaliable_metadatas={"mp4":["title","author","album_artist","album","grouping","composer","year","track","comment","copyright","show","episode_id","network","lyrics"],
                              "m4v": ["title", "author", "album_artist", "album", "grouping", "composer", "year",
                                              "track", "comment", "copyright", "show", "episode_id", "network",
@@ -611,6 +715,7 @@ class converter_identifier(converter):
                                              "lyrics"]}
         title=os.path.splitext(arquivo.name)[0]
         command=super().create_command(arquivo, True, resize, current_dir, no_hierarchy,force_change_fps, debug)
+        output_file=command[-1]
         command=command[:-1]
         stream_md = self.collect_stream_metadata(arquivo)
         streams_to_process = []
@@ -721,7 +826,7 @@ class converter_identifier(converter):
 
 
 
-        command.append(self.output_folder+self.so_folder_separator+newfilename)
+        command.append(output_file)
         if array:
             return command
         else:
@@ -747,73 +852,10 @@ class converter_identifier(converter):
         if not process:
             #print(command)
             #os.chdir(self.output_folder)
-            result = subprocess.Popen(command, stdout = subprocess.PIPE,stderr = subprocess.STDOUT,universal_newlines=True)
+            result=subprocess.run(command, stdout=subprocess.PIPE)
+            #result = subprocess.Popen(command, stdout = subprocess.PIPE,stderr = subprocess.STDOUT,universal_newlines=True)
             #line_nun=0
-            number_of_frames=0
-            error=0
-            for line in iter(result.stdout.readline, b''):
-                if "frame" in line and "fps" in line and "q" in line and "size"in line and "time"in line and "bitrate"in line and "speed"in line :
-                    '''frame= 2246 fps=748 q=15.0 size=   23365kB time=00:01:33.97 bitrate=2036.9kbits/s speed=31.3x'''
-                    #print(number_of_frames)
-                    try:
-                        search=re.search(r'frame=\D*(\d*)\D*fps=\D*(\d*)\D*q=\D*([\d\.]*)\D*size=\D*(\d*)\D*time=\D*(.*?)bitrate=\D*([\d\.kmg]*)*bits/s\D*speed=\D*([\d\.]*)\D*',line)
-                        try:
-                            frame=int(search.group(1))
-                        except:
-                            frame=int(re.search(r'frame=\D*(\d+)\D*=',line).group(1))
-                        try:
-                            fps=int(search.group(2))
-                        except:
-                            fps=int(re.search(r'fps=\D*(\d+)\D*=',line).group(1))
-                        try:
-                            quality=float(search.group(3))
-                        except:
-                            quality=float(re.search(r'q=\D*([\d\.]+)\D*=',line).group(1))
-                        try:
-                            size=int(search.group(4))
-                        except:
-                            size=int(re.search(r'size=\D*(\d+)\D*=',line).group(1))
-                        try:
-                            time=search.group(5)
-                        except:
-                            time=re.search(r'time=\D*(.*?)bitrate',line).group(1)
-                        try:
-                            bitrate=search.group(6)
-                        except:
-                            bitrate=re.search(r'bitrate=\D*([\d\.kmg]+)*bits/s\D*=',line).group(1)
-                        try:
-                            speed=float(search.group(7))
-                        except:
-                            speed=float(re.search(r'speed=\D*([\d\.]*)\D*',line).group(1))
-                        conclusion=int((number_of_frames*int(frame))/100)
-                        try:
-                            eta=int((number_of_frames-int(frame))/int(fps))
-                        except:
-                            eta="nan"
-                        out=str(str(line_nun)+str(conclusion)+"    eta="+str(eta)+"s  quality="+str(quality)+"  speed="+str(speed))
-                        print("test",end="\r")
-                    except:
-                        print(str(search),end="\r")
-                elif "NUMBER_OF_FRAMES"in line:
-                    #print(str(line_nun)+str(line.rstrip()))
-                    frames=re.search(r'NUMBER_OF_FRAMES\D*(\d+).*',line)
-                    try:
-                        number_of_frames=int(frames.group(1))
-                    except:
-                        pass
-                elif "Error" in line:
-                    error+=1
-                    print(str(error)+line)
-                elif "Conversion failed" in line:
-                    result.kill()
-                    return 1
-                elif len(line)>0 and line[-1]!="\r" :
-                    if line[-1]=="\n":
-                        print(str(line[:-1]))
-                    else:
-                        print(str(line))
-                    pass
-                #line_nun+=1
+            
             try:
                 os.remove(os.path.splitext(arquivo.name)[0] + ".jpg")
             except:
@@ -871,11 +913,4 @@ class converter_identifier(converter):
         else:
             print(self.results)
 
-tmdb_API_KEY = 'b888b64c9155c26ade5659ea4dd60e64'
 
-tmdb_API_KEY = 'b888b64c9155c26ade5659ea4dd60e64'
-
-conversor=converter_identifier(imdb_api_key=tmdb_API_KEY,resolution=720,codec="hevc_nvenc",fps=24,input_folder=".\\" ,output_folder=".\\convert",preset="slow",hwaccel="cuda",threads=4)
-
-conversor.convert_all_files_sequential(resize=True,current_dir=False,no_hierarchy=True)
-conversor.log_error_files()
