@@ -358,15 +358,18 @@ class converter:
             return True
         return False
 
-    def find_files(self, pattern):
+    def find_files(self, pattern,folder=""):
         """
-
-        :param pattern:
-        :return:
+            used to find specific files with text pattern in defined folder,if none folder is defined uses input folder
+        :param pattern: regex pattern used to search files
+        :param folder: folder where the files will be searched
+        :return: an array of files that match the pattern
         """
         '''Return list of files matching pattern in base folder.'''
-        return [n for n in fnmatch.filter(os.listdir(self.input_folder), pattern) if
-                os.path.isfile(os.path.join(self.input_folder, n))]
+        if folder=="":
+            folder=self.input_folder
+        return [n for n in fnmatch.filter(os.listdir(folder), pattern) if
+                os.path.isfile(os.path.join(folder, n))]
 
     def treat_file_name(self, File: os.DirEntry, current_dir=False, no_hierarchy=False, remove=False, debug=False):
         """
@@ -731,18 +734,18 @@ class converter:
                                     str(name_data["relative_dir"]) + str(
                                         name_data["file_name_no_extension"]) + "." + self.extension_convert)
                     except:
-                        pass
+                        self.results["cannot overwrite original"].append(File.path)
                 else:
                     try:
                         os.remove(str(File.path))
                     except:
-                        pass
+                        self.results["cannot delete original"].append(File.path)
             elif result.returncode == 1 and name_data["new_file_name"] != "":
                 try:
                     os.remove(str(name_data["new_file_name"] + ".tmp"))
                 except:
-                    pass
-            return result.returncode
+                    self.results["cannot delete tmp"].append(str(name_data["new_file_name"] + ".tmp"))
+                return result.returncode
         else:
             processo = subprocess.Popen(command)
             retorno = {"process": processo, "aquivo": File}
