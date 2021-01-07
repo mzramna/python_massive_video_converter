@@ -38,7 +38,9 @@ debug:if enabled will print lots of debug while converting the file
 
 if you want to identify the media files you just have to use the same parameters as the convencional converter class,but add the tmdb api
 like this:
+
 original class:`conversor=converter(resolution=720,codec="hevc_nvenc",fps=24,input_folder=".\\" ,output_folder=".\\convert",preset="slow",hwaccel="cuda",threads=4)`
+
 identifier class`conversor=converter_identifier(imdb_api_key=tmdb_API_KEY,resolution=720,codec="hevc_nvenc",fps=24,input_folder=".\\" ,output_folder=".\\convert",preset="slow",hwaccel="cuda",threads=4)`
 
 if the algorithim cannot identify the media by the filename,it will asks you by the right name of the media,it will not go on until you inform that
