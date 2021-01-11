@@ -10,7 +10,7 @@ import fnmatch
 class converter:
     def __init__(self, extension_convert: str = "mkv", resolution: int = 480, codec: str = "h264_omx", fps: int = 24,
                  crf: int = 20, preset: str = "slow", hwaccel="", threads=2, log_level=32, input_folder="./",
-                 output_folder="./convert/", resize_log="./resize.log", resized_log="./resized.log"):
+                 output_folder="./convert/", resize_log="./resize.log", resized_log="./resized.log",sort_size=False):
         """
         class to convert huge amount of video files to same size,codec and other parameters specified below
 
@@ -35,7 +35,7 @@ class converter:
         if not os.path.isdir(self.output_folder):
             os.mkdir(self.output_folder)
         self.codec = codec
-        self.extension_convert = extension_convert
+        self.extension_convert = str(extension_convert)
         self.resolution = resolution
         self.fps = fps
         self.crf = crf
@@ -46,7 +46,8 @@ class converter:
         self.dir_data = self.list_content_folder(self.input_folder)
         self.files = []
         self.fill_files_list()
-        self.files.sort(key=lambda x: x.stat().st_size, reverse=False)
+        if sort_size:
+            self.files.sort(key=lambda x: x.stat().st_size, reverse=False)
         self.results = {}
         if platform.system() == 'Windows':
             self.so_folder_separator = "\\"
@@ -154,7 +155,7 @@ class converter:
         if folders == "":
             folders = self.dir_data["dirs"]
             for file in self.dir_data["files"]:
-                if os.path.splitext(file.name)[1][1:] in fileExtensions:
+                if str(os.path.splitext(file.name)[1][1:]).lower() in fileExtensions:
                     self.files.append(file)
         for folder in folders:
             dir_data = self.list_content_folder(folder.path)
@@ -386,11 +387,11 @@ class converter:
                           "divx"]
 
         file_name_no_extension = os.path.splitext(File.name)[0]
-        extension = os.path.splitext(File.name)[1][1:]
+        extension = str(os.path.splitext(File.name)[1][1:])
         new_file_name = None
         folder_to_create = None
         log_file_name = None
-        if (extension or self.extension_convert) in fileExtensions:
+        if (extension.lower() or self.extension_convert.lower()) in fileExtensions:
             convertable = True
             ##create relative dir
             relative_dir = ""
@@ -446,11 +447,12 @@ class converter:
                 folder_to_create = ""
                 log_file_name = self.resized_log
             # print(folder_to_create)
-            if extension == self.extension_convert:
-                new_file_name = new_file_name + ".convert"
+            if extension == self.extension_convert  :
                 same_extension = True
             else:
                 same_extension = False
+            if same_extension and not remove and (self.input_folder == self.output_folder or (os.getcwd() == self.input_folder and current_dir )):
+                new_file_name = new_file_name + ".convert"
             if debug:
                 new_file_name = str(
                     new_file_name + "." + str(self.codec) + "." + str(self.crf) + "." + str(self.preset) + "." + str(
@@ -734,16 +736,22 @@ class converter:
                                     str(name_data["relative_dir"]) + str(
                                         name_data["file_name_no_extension"]) + "." + self.extension_convert)
                     except:
+                        if "cannot overwrite original" not in self.results.keys():
+                            self.results["cannot overwrite original"] = []
                         self.results["cannot overwrite original"].append(File.path)
                 else:
                     try:
                         os.remove(str(File.path))
                     except:
+                        if "cannot delete original" not in self.results.keys():
+                            self.results["cannot delete original"] = []
                         self.results["cannot delete original"].append(File.path)
             elif result.returncode == 1 and name_data["new_file_name"] != "":
                 try:
                     os.remove(str(name_data["new_file_name"] + ".tmp"))
                 except:
+                    if "cannot delete tmp" not in self.results.keys():
+                            self.results["cannot delete tmp"] = []
                     self.results["cannot delete tmp"].append(str(name_data["new_file_name"] + ".tmp"))
                 return result.returncode
         else:
