@@ -775,6 +775,7 @@ class converter:
                             self.results["cannot delete tmp"] = []
                     self.results["cannot delete tmp"].append(str(name_data["new_file_name"] + ".tmp"))
                 return result.returncode
+            return result.returncode
         else:
             processo = subprocess.Popen(command)
             retorno = {"process": processo, "aquivo": File}
