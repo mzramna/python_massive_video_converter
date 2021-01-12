@@ -35,7 +35,7 @@ class converter:
         if not os.path.isdir(self.output_folder):
             os.mkdir(self.output_folder)
         self.codec = codec
-        self.extension_convert = str(extension_convert)
+        self.extension_convert = str(extension_convert).lower()
         self.resolution = resolution
         self.fps = fps
         self.crf = crf
@@ -509,7 +509,7 @@ class converter:
         file.close()
 
     def create_command(self, File: os.DirEntry, array=False, resize=False, current_dir=False, no_hierarchy=False,
-                       force_change_fps=False, debug=False):
+                       force_change_fps=False, debug=False,output_name=""):
         """
 
         :param File:
@@ -525,12 +525,25 @@ class converter:
         subtitle_bitmap = ["dvdsub", "dvd_subtitle", "pgssub", "hdmv_pgs_subtitle"]
         name_data = self.treat_file_name(File, current_dir=current_dir, no_hierarchy=no_hierarchy, debug=debug)
         # print(name_data)
+        converted=False
         if not name_data["convertable"] or (name_data["converted"] and not debug) or (
                 name_data["extension"] == self.extension_convert and not resize):
             return ""
         # if os.path.isfile(name_data["new_file_name"]) and current_dir==True or os.path.isfile(str(name_data["relative_dir"]) + str(
         #                            name_data["file_name_no_extension"]) + "." + self.extension_convert) and current_dir==False :
         #  return ""
+        if output_name!="":
+            try:
+                log_file = open(self.resized_log,"r+")
+                for line in log_file.readlines():
+                    if output_name in line:
+                        converted = True
+                        break
+                log_file.close()
+            except:
+                pass
+        if converted:
+            return ""
         command = [self.ffmpeg_executable, "-y"]
         if self.hwaccel != "":
             command.append("-hwaccel")
@@ -665,7 +678,10 @@ class converter:
         #    for i in range(0,len(subtitles_avaliable)+1):
         #        command.append("-map")
         #        command.append(i)
-        command.append(str(name_data["new_file_name"]))
+        if output_name=="":
+            command.append(str(name_data["new_file_name"]))
+        else:
+            command.append(str(output_name))
         # print(command)
 
         if array:
@@ -678,7 +694,7 @@ class converter:
 
     def convert_video(self, File: os.DirEntry, resize=False, remove=False, process=False, current_dir=False,
                       no_hierarchy=False,
-                      force_change_fps=False, debug=False, working_log="./working.log"):
+                      force_change_fps=False, debug=False, working_log="./working.log",output_name=""):
         """
 
         :param File:
@@ -703,14 +719,19 @@ class converter:
         except:
             pass
         command = self.create_command(File, array=True, resize=resize, current_dir=current_dir, debug=debug,
-                                      force_change_fps=force_change_fps, no_hierarchy=no_hierarchy)
+                                      force_change_fps=force_change_fps, no_hierarchy=no_hierarchy,output_name=output_name)
         if command == "" or (name_data["converted"] and not debug):
             return 0
 
         if not process:
-            # print(command)
+            if debug:
+                print(command)
             os.chdir(self.output_folder)
             result = subprocess.run(command, stdout=subprocess.PIPE)
+            if result.returncode == 0 and output_name != "":
+                log_file = open(self.resized_log, "a")
+                log_file.write(output_name + "\n")
+                log_file.close()
             if resize and result.returncode == 0:
                 # log_file=open(working_log,"a")
                 # tmp_log_file=open(str(working_log)+".tmp","a")
@@ -839,7 +860,7 @@ class converter_identifier(converter):
         return json_data
 
     def create_command(self, File: os.DirEntry, array=False, resize=False, current_dir=False, no_hierarchy=False,
-                       force_change_fps=False, debug=False):
+                       force_change_fps=False, debug=False,output_name=""):
         """
 
         :param File:
@@ -973,7 +994,10 @@ class converter_identifier(converter):
         except:
             pass
 
-        command.append(output_file)
+        if output_name == "":
+            command.append(str(output_file))
+        else:
+            command.append(str(output_name))
         if array:
             return command
         else:
@@ -984,7 +1008,7 @@ class converter_identifier(converter):
 
     def convert_video(self, File: os.DirEntry, resize=False, remove=False, process=False, current_dir=False,
                       no_hierarchy=False,
-                      force_change_fps=False, debug=False, working_log="./working.log"):
+                      force_change_fps=False, debug=False, working_log="./working.log",output_name=""):
         """
 
         :param File:
@@ -1009,7 +1033,7 @@ class converter_identifier(converter):
         except:
             pass
         command = self.create_command(File, array=True, resize=resize, current_dir=current_dir, debug=debug,
-                                      force_change_fps=force_change_fps, no_hierarchy=no_hierarchy)
+                                      force_change_fps=force_change_fps, no_hierarchy=no_hierarchy,output_name=output_name)
         if command == "" or (name_data["converted"] and not debug):
             return 0
         print(command)
