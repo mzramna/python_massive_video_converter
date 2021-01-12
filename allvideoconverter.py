@@ -9,7 +9,7 @@ import fnmatch
 
 class converter:
     def __init__(self, extension_convert: str = "mkv", resolution: int = 480, codec: str = "h264_omx", fps: int = 24,
-                 crf: int = 20, preset: str = "slow", hwaccel="", threads=2, log_level=32, input_folder="./",
+                 crf: int = 20, preset: str = "slow", hwaccel="", threads=0, log_level=32, input_folder="./",
                  output_folder="./convert/", resize_log="./resize.log", resized_log="./resized.log",sort_size=False):
         """
         class to convert huge amount of video files to same size,codec and other parameters specified below
@@ -36,12 +36,15 @@ class converter:
             os.mkdir(self.output_folder)
         self.codec = codec
         self.extension_convert = str(extension_convert).lower()
-        self.resolution = resolution
-        self.fps = fps
-        self.crf = crf
+        self.resolution = int(resolution)
+        self.fps = int(fps)
+        self.crf = int(crf)
         self.preset = preset
         self.hwaccel = hwaccel
-        self.threads = threads
+        if threads !=0:
+            self.threads = int(threads)
+        else:
+            self.threads =int(os.cpu_count())
         self.log_level = str(log_level)
         self.dir_data = self.list_content_folder(self.input_folder)
         self.files = []
@@ -576,15 +579,21 @@ class converter:
         # the best for any situation
         change_fps = False
         if not resize:
+            if debug:
+                print("not resize")
             resize_command.append("-crf")
             resize_command.append(str(self.crf))
             resize_command.append("-preset")
             resize_command.append(self.preset)
         else:
-            if not name_data["converted"] or debug:
+            if debug:
+                print("resize")
+            if not name_data["converted"]:
                 small = False
                 out_scale = False
                 if self.resolution == 240:
+                    if debug:
+                        print("240p")
                     resize_command.append("-b:v")
                     resize_command.append("500k")
                     resize_command.append("-minrate")
@@ -598,6 +607,8 @@ class converter:
                     else:
                         small = True
                 elif self.resolution == 360:
+                    if debug:
+                        print("360p")
                     resize_command.append("-b:v")
                     resize_command.append("600k")
                     resize_command.append("-minrate")
@@ -611,6 +622,8 @@ class converter:
                     else:
                         small = True
                 elif self.resolution == 480:
+                    if debug:
+                        print("480p")
                     resize_command.append("-b:v")
                     resize_command.append("1000k")
                     resize_command.append("-minrate")
@@ -624,6 +637,8 @@ class converter:
                     else:
                         small = True
                 elif self.resolution == 720:
+                    if debug:
+                        print("720p")
                     resize_command.append("-b:v")
                     resize_command.append("3300k")
                     resize_command.append("-minrate")
@@ -637,6 +652,8 @@ class converter:
                     else:
                         small = True
                 elif self.resolution == 1080:
+                    if debug:
+                        print("1080p")
                     resize_command.append("-b:v")
                     resize_command.append("4000k")
                     resize_command.append("-minrate")
@@ -651,6 +668,9 @@ class converter:
                         small = True
                 else:
                     out_scale = True
+                for c in resize_command:
+                    command.append(c)
+
                 if not small and not out_scale:
                     if self.compare_fps(File, self.fps):
                         command.append("-filter:v")
@@ -744,7 +764,7 @@ class converter:
                 # tmp_log_file.close()
                 # shutil.move(str(working_log)+".tmp",working_log)
                 # os.rename(name_data["new_file_name"]+".tmp",name_data["new_file_name"])
-                log_file = open(name_data["log_file_name"], "a")
+                log_file = open(name_data["log_file_name"], "a+")
                 log_file.write(name_data["new_file_name"] + "\n")
                 log_file.close()
             if remove and result.returncode == 0:

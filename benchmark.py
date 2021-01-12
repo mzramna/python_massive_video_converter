@@ -79,7 +79,7 @@ for hwaccel in codecs.keys():
 
             output_file = str(current_dir + "\\benchmark_files\\benchmark."+hwaccel+"." + codec + "." + file_format.lower())
             initial_time = time.time()
-            if benchmark.convert_video(test_video, output_name=output_file) == 0:
+            if benchmark.convert_video(test_video, output_name=output_file,debug=True,resize=True) == 0:
                 total_time = time.time() - initial_time
                 converted_file = find_file(current_dir + "\\benchmark_files",
                                            str("benchmark." + codec + "." + file_format))
