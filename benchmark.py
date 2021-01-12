@@ -29,7 +29,7 @@ current_dir = str(os.getcwd())
 is_new = not os.path.exists("./benchmark_result.csv")
 benchmark_log = open(current_dir + "\\benchmark_result.csv", "a+", newline="\n")
 if is_new:
-    benchmark_log.write("output_file;codec;file_format;total_time;size\n")
+    benchmark_log.write("output_file;hwaccel;codec;file_format;total_time;size\n")
 benchmark_log.close()
 try:
     test_video = find_file(current_dir + "\\benchmark_files\\original",
@@ -77,7 +77,7 @@ for hwaccel in codecs.keys():
         for file_format in codecs[hwaccel][codec]:
             benchmark_log = open(current_dir + "\\benchmark_result.csv", "a+", newline="\n")
 
-            output_file = str(current_dir + "\\benchmark_files\\benchmark." + codec + "." + file_format.lower())
+            output_file = str(current_dir + "\\benchmark_files\\benchmark."+hwaccel+"." + codec + "." + file_format.lower())
             initial_time = time.time()
             if benchmark.convert_video(test_video, output_name=output_file) == 0:
                 total_time = time.time() - initial_time
@@ -85,7 +85,7 @@ for hwaccel in codecs.keys():
                                            str("benchmark." + codec + "." + file_format))
                 if converted_file != None:
                     benchmark_log.write(
-                        str(str(converted_file.path)+";"+ str(codec)+";"+str(file_format)+";"+str(total_time)+";"+str( converted_file.stat().st_size)+"\n"))
+                        str(str(converted_file.path)+";"+str(hwaccel)+";"+ str(codec)+";"+str(file_format)+";"+str(total_time)+";"+str( converted_file.stat().st_size)+"\n"))
 
                     benchmark_log.close()
 
