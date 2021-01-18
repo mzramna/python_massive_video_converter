@@ -10,7 +10,7 @@ import fnmatch
 class converter:
     def __init__(self, extension_convert: str = "mkv", resolution: int = 480, codec: str = "h264_omx", fps: int = 24,
                  crf: int = 20, preset: str = "slow", hwaccel="", threads=0, log_level=32, input_folder="./",
-                 output_folder="./convert/", resize_log="./resize.log", resized_log="./resized.log",sort_size=False):
+                 output_folder="./convert/", resize_log="./resize.log", resized_log="./resized.log",sort_size=False,ignore_resized_log=False,ignore_resize_log=False):
         """
         class to convert huge amount of video files to same size,codec and other parameters specified below
 
@@ -29,7 +29,9 @@ class converter:
         :param resized_log: the redundant log file that informs all the converted files that ends correctly,if deleted or moved from the informed dir,it will restart all the conversion process
         """
         self.resized_log = resized_log
+        self.ignore_resized_log=ignore_resized_log
         self.resize_log = resize_log
+        self.ignore_resize_log = ignore_resize_log
         self.input_folder = input_folder
         self.output_folder = output_folder
         if not os.path.isdir(self.output_folder):
@@ -277,7 +279,7 @@ class converter:
             return "error", int(dim.returncode)
         dim = re.compile("(\d+,\d+)").findall(str(dim.stdout))[0].split(",")
         # print(dim)
-        dim = {"x": dim[0], "y": dim[1]}
+        dim = {"x": int(dim[0]), "y": int(dim[1])}
         return dim
 
     @staticmethod
@@ -299,7 +301,31 @@ class converter:
         dim = re.compile("(\d+/\d+)").findall(str(dim.stdout))[0].split("/")
         dim = int(dim[0]) / int(dim[1])
         return dim
+    
+    @staticmethod
+    def get_aspet_ratio(File:os.DirEntry,stream:int=0):
+        "ffprobe -v error -select_streams v:0 -show_entries stream=display_aspect_ratio -of json=c=1"
+        check_dim = str(
+            "ffprobe -v quiet -select_streams v:" + str(
+                stream) + " -show_entries stream=display_aspect_ratio -of csv=p=0").split(
+            " ")
+        check_dim.append(File.path)
+        dim = subprocess.run(check_dim, stdout=subprocess.PIPE)
+        if dim.returncode != 0:
+            return "error", int(dim.returncode)
+        dim = re.compile("(\d+:\d+)").findall(str(dim.stdout))[0].split(":")
+        # print(dim)
+        dim = {"x": int(dim[0]), "y": int(dim[1])}
+        return dim
 
+    
+    def new_resolution(self,File:os.DirEntry,height,stream:int=0):
+        res=self.get_resolution(File,stream)
+        if isinstance(res,tuple):
+            return res
+        final_width=(res["x"]/res["y"])*height
+        return int(final_width)
+    
     @staticmethod
     def command_to_array(command, aditional_data: [] = [], previous_array: [] = []):
         """
@@ -449,6 +475,8 @@ class converter:
                 new_file_name = str(os.getcwd()) + str(file_name_no_extension)
                 folder_to_create = ""
                 log_file_name = self.resized_log
+            else:
+                return ""
             # print(folder_to_create)
             if extension == self.extension_convert  :
                 same_extension = True
@@ -456,33 +484,36 @@ class converter:
                 same_extension = False
             if same_extension and not remove and (self.input_folder == self.output_folder or (os.getcwd() == self.input_folder and current_dir )):
                 new_file_name = new_file_name + ".convert"
-            if debug:
-                new_file_name = str(
-                    new_file_name + "." + str(self.codec) + "." + str(self.crf) + "." + str(self.preset) + "." + str(
-                        self.codec) + "." + str(self.resolution) + "." + str(self.fps))
+            #if debug:
+            #    new_file_name = str(
+            #        new_file_name + "." + str(self.codec) + "." + str(self.crf) + "." + str(self.preset) + "." + str(
+            #            self.codec) + "." + str(self.resolution) + "." + str(self.fps))
             new_file_name = new_file_name + "." + self.extension_convert
             try:
-                log_file = open(log_file_name)
-                converted = False
-                # log_file=open(working_log,"r")
-                # for line in log_file.readlines():
-                # if line == new_file_name+"\n":
-                # log_file.close()
-                # print("working")
-                # return 0
-                # log_file.close()
+                if not self.ignore_resized_log:
+                    log_file = open(log_file_name)
+                    converted = False
+                    # log_file=open(working_log,"r")
+                    # for line in log_file.readlines():
+                    # if line == new_file_name+"\n":
+                    # log_file.close()
+                    # print("working")
+                    # return 0
+                    # log_file.close()
 
-                for line in log_file.readlines():
-                    if new_file_name in line:
-                        converted = True
-                        break
-                log_file.close()
-                log_file = open(self.resize_log)
-                for line in log_file.readlines():
-                    if File.path in line:
-                        converted = True
-                        break
-                log_file.close()
+                    for line in log_file.readlines():
+                        if new_file_name in line:
+                            converted = True
+                            break
+                        log_file.close()
+                        
+                if not self.ignore_resize_log:
+                    log_file = open(self.resize_log)
+                    for line in log_file.readlines():
+                        if File.path in line:
+                            converted = True
+                            break
+                    log_file.close()
             except:
                 converted = False
         else:
@@ -512,7 +543,7 @@ class converter:
         file.close()
 
     def create_command(self, File: os.DirEntry, array=False, resize=False, current_dir=False, no_hierarchy=False,
-                       force_change_fps=False, debug=False,output_name=""):
+                       force_change_fps=False, debug=False,output_name="",force_resize=False):
         """
 
         :param File:
@@ -528,6 +559,8 @@ class converter:
         subtitle_bitmap = ["dvdsub", "dvd_subtitle", "pgssub", "hdmv_pgs_subtitle"]
         name_data = self.treat_file_name(File, current_dir=current_dir, no_hierarchy=no_hierarchy, debug=debug)
         # print(name_data)
+        if name_data=="":
+            return 0
         converted=False
         if not name_data["convertable"] or (name_data["converted"] and not debug) or (
                 name_data["extension"] == self.extension_convert and not resize):
@@ -536,15 +569,16 @@ class converter:
         #                            name_data["file_name_no_extension"]) + "." + self.extension_convert) and current_dir==False :
         #  return ""
         if output_name!="":
-            try:
-                log_file = open(self.resized_log,"r+")
-                for line in log_file.readlines():
-                    if output_name in line:
-                        converted = True
-                        break
-                log_file.close()
-            except:
-                pass
+            if not self.ignore_resized_log:
+                try:
+                    log_file = open(self.resized_log,"r+")
+                    for line in log_file.readlines():
+                        if output_name in line:
+                            converted = True
+                            break
+                    log_file.close()
+                except:
+                    pass
         if converted:
             return ""
         command = [self.ffmpeg_executable, "-y"]
@@ -573,6 +607,8 @@ class converter:
         if self.hwaccel == "qsv":
             command.append("-load_plugin")
             command.append("hevc_hw")
+        command.append("-max_muxing_queue_size")
+        command.append("1024")
         resize_command = []
         # if used crf the resize parameters of bitrate are not necessary
         # but accord to official youtube data the bitrate used in resize parameters are
@@ -601,9 +637,10 @@ class converter:
                     resize_command.append("-maxrate")
                     resize_command.append("700k")
                     compared_res = self.compare_resolution(File, 426, 240)
-                    if not isinstance(compared_res, int) and compared_res:
+                    if (not isinstance(compared_res, tuple) and compared_res) or force_resize:
                         resize_command.append("-s")
-                        resize_command.append("426x240")  # determina a escala do arquivo para 480p
+                        dim=str(self.new_resolution(File,240))+"x240"
+                        resize_command.append(dim)  # determina a escala do arquivo para 480p
                     else:
                         small = True
                 elif self.resolution == 360:
@@ -616,9 +653,10 @@ class converter:
                     resize_command.append("-maxrate")
                     resize_command.append("1000k")
                     compared_res = self.compare_resolution(File, 640, 320)
-                    if not isinstance(compared_res, int) and compared_res:
+                    if (not isinstance(compared_res, tuple) and compared_res) or force_resize:
                         resize_command.append("-s")
-                        resize_command.append("640x320")  # determina a escala do arquivo para 480p
+                        dim=str(self.new_resolution(File,320))+"x320"
+                        resize_command.append(dim)  # determina a escala do arquivo para 480p
                     else:
                         small = True
                 elif self.resolution == 480:
@@ -629,41 +667,44 @@ class converter:
                     resize_command.append("-minrate")
                     resize_command.append("500k")
                     resize_command.append("-maxrate")
-                    resize_command.append("2000k")
+                    resize_command.append("1500k")
                     compared_res = self.compare_resolution(File, 854, 480)
-                    if not isinstance(compared_res, int) and compared_res:
+                    if (not isinstance(compared_res, tuple) and compared_res) or force_resize:
                         resize_command.append("-s")
-                        resize_command.append("854x480")  # determina a escala do arquivo para 480p
+                        dim=str(self.new_resolution(File,480))+"x480"
+                        resize_command.append(dim)  # determina a escala do arquivo para 480p
                     else:
                         small = True
                 elif self.resolution == 720:
                     if debug:
                         print("720p")
                     resize_command.append("-b:v")
-                    resize_command.append("3300k")
+                    resize_command.append("2500k")
                     resize_command.append("-minrate")
-                    resize_command.append("1500k")
+                    resize_command.append("1200k")
                     resize_command.append("-maxrate")
-                    resize_command.append("6000k")
+                    resize_command.append("4000k")
                     compared_res = self.compare_resolution(File, 1280, 720)
-                    if not isinstance(compared_res, int) and compared_res:
+                    if (not isinstance(compared_res, tuple) and compared_res) or force_resize:
                         resize_command.append("-s")
-                        resize_command.append("1280x720")  # determina a escala do arquivo para 720p
+                        dim=str(self.new_resolution(File,720))+"x720"
+                        resize_command.append(dim)  # determina a escala do arquivo para 720p
                     else:
                         small = True
                 elif self.resolution == 1080:
                     if debug:
                         print("1080p")
                     resize_command.append("-b:v")
-                    resize_command.append("4000k")
+                    resize_command.append("4500k")
                     resize_command.append("-minrate")
                     resize_command.append("3000k")
                     resize_command.append("-maxrate")
-                    resize_command.append("9000k")
+                    resize_command.append("6000k")
                     compared_res = self.compare_resolution(File, 1920, 1080)
-                    if not isinstance(compared_res, int) and compared_res:
+                    if (not isinstance(compared_res, tuple) and compared_res) or force_resize:
                         resize_command.append("-s")
-                        resize_command.append("1920x1080")  # determina a escala do arquivo para 1080p
+                        dim=str(self.new_resolution(File,1080))+"x1080"
+                        resize_command.append(dim)  # determina a escala do arquivo para 1080p
                     else:
                         small = True
                 else:
@@ -714,7 +755,7 @@ class converter:
 
     def convert_video(self, File: os.DirEntry, resize=False, remove=False, process=False, current_dir=False,
                       no_hierarchy=False,
-                      force_change_fps=False, debug=False, working_log="./working.log",output_name=""):
+                      force_change_fps=False, debug=False, working_log="./working.log",output_name="", force_resize=False):
         """
 
         :param File:
@@ -728,8 +769,10 @@ class converter:
         :param working_log:
         :return:
         """
-        name_data = self.treat_file_name(File, current_dir=current_dir, no_hierarchy=no_hierarchy, remove=remove,
-                                         debug=debug)
+        name_data = self.treat_file_name(File, current_dir=current_dir, no_hierarchy=no_hierarchy,
+                                         remove=remove,debug=debug)
+        if name_data == "":
+            return 0
         if not name_data["convertable"] or (name_data["converted"] and not debug) or (
                 name_data["extension"] == self.extension_convert and not resize):
             return 0
@@ -739,7 +782,7 @@ class converter:
         except:
             pass
         command = self.create_command(File, array=True, resize=resize, current_dir=current_dir, debug=debug,
-                                      force_change_fps=force_change_fps, no_hierarchy=no_hierarchy,output_name=output_name)
+                                      force_change_fps=force_change_fps, no_hierarchy=no_hierarchy,output_name=output_name,force_resize=force_resize)
         if command == "" or (name_data["converted"] and not debug):
             return 0
 
@@ -749,10 +792,22 @@ class converter:
             os.chdir(self.output_folder)
             result = subprocess.run(command, stdout=subprocess.PIPE)
             if result.returncode == 0 and output_name != "":
-                log_file = open(self.resized_log, "a")
-                log_file.write(output_name + "\n")
-                log_file.close()
-            if resize and result.returncode == 0:
+                if debug:
+                    print("selected output file ,done with success")
+                if not self.ignore_resized_log:
+                    log_file = open(self.resized_log, "a")
+                    log_file.write(output_name + "\n")
+                    log_file.close()
+            elif resize and result.returncode == 0 and output_name != "":
+                if debug:
+                    print("selected output file resize ,done with success")
+                if not self.ignore_resized_log:
+                    log_file = open(self.resized_log, "a")
+                    log_file.write(output_name + "\n")
+                    log_file.close()
+            elif resize and result.returncode == 0:
+                if debug:
+                    print("automatic output file ,done with success")
                 # log_file=open(working_log,"a")
                 # tmp_log_file=open(str(working_log)+".tmp","a")
                 # for line in log_file.readlines():
@@ -764,11 +819,18 @@ class converter:
                 # tmp_log_file.close()
                 # shutil.move(str(working_log)+".tmp",working_log)
                 # os.rename(name_data["new_file_name"]+".tmp",name_data["new_file_name"])
-                log_file = open(name_data["log_file_name"], "a+")
-                log_file.write(name_data["new_file_name"] + "\n")
-                log_file.close()
+                if debug:
+                    print(name_data["log_file_name"])
+                if not self.ignore_resized_log:
+                    log_file = open(name_data["log_file_name"], "w+")
+                    log_file.write(name_data["new_file_name"] + "\n")
+                    log_file.close()
             if remove and result.returncode == 0:
-                if name_data["same_extension"]:
+                if debug:
+                    print("removing original file")
+                if name_data["same_extension"] and (self.input_folder == self.output_folder or File.path == output_name):
+                    if debug:
+                        print("replacing with converted file")
                     # shutil.move(name_data["new_file_name"]+".tmp",
                     #            str(name_data["relative_dir"]) + str(
                     #                name_data["file_name_no_extension"]) + "." + self.extension_convert)
@@ -782,12 +844,16 @@ class converter:
                         self.results["cannot overwrite original"].append(File.path)
                 else:
                     try:
+                        if debug:
+                            print("deleting original file")
                         os.remove(str(File.path))
                     except:
                         if "cannot delete original" not in self.results.keys():
                             self.results["cannot delete original"] = []
                         self.results["cannot delete original"].append(File.path)
             elif result.returncode == 1 and name_data["new_file_name"] != "":
+                if debug:
+                    print("selected output file ,error")
                 try:
                     os.remove(str(name_data["new_file_name"] + ".tmp"))
                 except:
@@ -1045,6 +1111,8 @@ class converter_identifier(converter):
         """
         name_data = self.treat_file_name(File, current_dir=current_dir, no_hierarchy=no_hierarchy, remove=remove,
                                          debug=debug)
+        if name_data=="":
+            return 0
         if not name_data["convertable"] or (name_data["converted"] and not debug) or (
                 name_data["extension"] == self.extension_convert and not resize):
             return 0
