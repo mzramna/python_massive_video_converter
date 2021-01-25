@@ -149,6 +149,38 @@ class converter:
                 pass
             # line_nun+=1
 
+    @staticmethod
+    def line_in_file(File: os.DirEntry,line:str):
+        _file=open(File.path,"r")
+        list_file=_file.readlines()
+        _file.close()
+        if line in list_file:
+            return True
+        else:
+            return False
+    
+    def path_to_direntry(self,path:str):
+        log_file_name_dir=""
+        if len(path.split(self.so_folder_separator)) > 1:
+            for x in path.split(self.so_folder_separator)[:-1]:
+                log_file_name_dir = str(log_file_name_dir + str(x) + self.so_folder_separator)
+        else:
+            log_file_name_dir = str(log_file_name_dir + str(".") + self.so_folder_separator)
+        
+        log_file=path.split(self.so_folder_separator)[-1]
+        
+        for file in os.scandir(log_file_name_dir):
+            if file.name == log_file:
+                return file
+            
+        open(path,"a").close()
+                
+        for file in os.scandir(log_file_name_dir):
+            if file.name == log_file:
+                return file
+            
+        return path
+    
     def fill_files_list(self, folders=""):
         """
             search the media files in folder ,used also to update if any change happend
@@ -525,6 +557,10 @@ class converter:
             relative_dir = ""
         if converted and remove:
             os.remove(File)
+        
+        log_file_name=self.path_to_direntry(log_file_name)
+
+        
         return {"file_name_no_extension": file_name_no_extension, "extension": extension, "convertable": convertable,
                 "relative_dir": relative_dir, "new_file_name": new_file_name, "same_extension": same_extension,
                 "folder_to_create": folder_to_create, "converted": converted, "log_file_name": log_file_name}
@@ -592,14 +628,14 @@ class converter:
         #        command.append("-i")
         #        command.append(str(self.input_folder)+self.so_folder_separator+str(i))
         command = command + ["-acodec", "aac", "-c:v",
-                             self.codec, "-map_metadata", "0", "-pix_fmt", "yuv420p",
+                             self.codec, "-map_metadata", "0","-map", "0", "-pix_fmt", "yuv420p",
                              "-threads", str(self.threads), "-copy_unknown"]
         try:
             subtitle_codec = self.get_subtitle_codec(File, 0)
             if isinstance(subtitle_codec, int):
                 return ""
             elif subtitle_codec in subtitle_srt:
-                command.append("-c:s")
+                command.append("-scodec")
                 command.append("srt")
         except:
             pass
@@ -796,14 +832,16 @@ class converter:
                     print("selected output file ,done with success")
                 if not self.ignore_resized_log:
                     log_file = open(self.resized_log, "a")
-                    log_file.write(output_name + "\n")
+                    while self.line_in_file(self.resized_log,str(output_name + "\n")): 
+                        log_file.write(output_name + "\n")
                     log_file.close()
             elif resize and result.returncode == 0 and output_name != "":
                 if debug:
                     print("selected output file resize ,done with success")
                 if not self.ignore_resized_log:
                     log_file = open(self.resized_log, "a")
-                    log_file.write(output_name + "\n")
+                    while self.line_in_file(self.resized_log,str(output_name + "\n")): 
+                        log_file.write(output_name + "\n")
                     log_file.close()
             elif resize and result.returncode == 0:
                 if debug:
@@ -820,10 +858,11 @@ class converter:
                 # shutil.move(str(working_log)+".tmp",working_log)
                 # os.rename(name_data["new_file_name"]+".tmp",name_data["new_file_name"])
                 if debug:
-                    print(name_data["log_file_name"])
+                    print(name_data["log_file_name"].path)
                 if not self.ignore_resized_log:
-                    log_file = open(name_data["log_file_name"], "w+")
-                    log_file.write(name_data["new_file_name"] + "\n")
+                    log_file = open(name_data["log_file_name"].path, "w+")
+                    while self.line_in_file(name_data["log_file_name"],str(name_data["new_file_name"] + "\n")): 
+                        log_file.write(name_data["new_file_name"] + "\n")
                     log_file.close()
             if remove and result.returncode == 0:
                 if debug:
@@ -835,7 +874,9 @@ class converter:
                     #            str(name_data["relative_dir"]) + str(
                     #                name_data["file_name_no_extension"]) + "." + self.extension_convert)
                     try:
-                        shutil.move(name_data["new_file_name"],
+                        while (os.path.exists(name_data["new_file_name"]) and os.path.exists(str(name_data["relative_dir"]) + str(
+                                        name_data["file_name_no_extension"]) + "." + self.extension_convert)):
+                            shutil.move(name_data["new_file_name"],
                                     str(name_data["relative_dir"]) + str(
                                         name_data["file_name_no_extension"]) + "." + self.extension_convert)
                     except:
@@ -846,7 +887,8 @@ class converter:
                     try:
                         if debug:
                             print("deleting original file")
-                        os.remove(str(File.path))
+                        while os.path.exists(str(File.path)):
+                            os.remove(str(File.path))
                     except:
                         if "cannot delete original" not in self.results.keys():
                             self.results["cannot delete original"] = []
@@ -855,7 +897,8 @@ class converter:
                 if debug:
                     print("selected output file ,error")
                 try:
-                    os.remove(str(name_data["new_file_name"] + ".tmp"))
+                    while os.path.exists(str(name_data["new_file_name"] + ".tmp")):
+                        os.remove(str(name_data["new_file_name"] + ".tmp"))
                 except:
                     if "cannot delete tmp" not in self.results.keys():
                             self.results["cannot delete tmp"] = []
