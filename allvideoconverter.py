@@ -628,7 +628,7 @@ class converter:
         #        command.append("-i")
         #        command.append(str(self.input_folder)+self.so_folder_separator+str(i))
         command = command + ["-acodec", "aac", "-c:v",
-                             self.codec, "-map_metadata", "0","-map", "0", "-pix_fmt", "yuv420p",
+                             self.codec, "-map_metadata", "0","-map", "0:v:?" , "-map", "0:a:?" , "-map","0:s:?", "-pix_fmt", "yuv420p",
                              "-threads", str(self.threads), "-copy_unknown"]
         try:
             subtitle_codec = self.get_subtitle_codec(File, 0)
