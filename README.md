@@ -46,4 +46,4 @@ identifier class`conversor=converter_identifier(imdb_api_key=tmdb_API_KEY,resolu
 if the algorithim cannot identify the media by the filename,it will asks you by the right name of the media,it will not go on until you inform that
 
 
-extra documentation:[reddit post](https://www.reddit.com/r/DataHoarder/comments/orxrxj/a_python_script_to_automaticaly_convert_and/)
+extra documentation:[reddit post](https://www.reddit.com/r/madeinpython/comments/orxtzx/a_python_script_to_automaticaly_convert_and/?utm_source=share&utm_medium=web2x&context=3)
