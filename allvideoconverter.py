@@ -10,7 +10,7 @@ import fnmatch
 class converter:
     def __init__(self, extension_convert: str = "mkv", resolution: int = 480, codec: str = "h264_omx", fps: int = 24,
                  crf: int = 20, preset: str = "slow", hwaccel="", threads=0, log_level=32, input_folder="./",
-                 output_folder="./convert/", resize_log="./resize.log", resized_log="./resized.log",sort_size=False,ignore_resized_log=False,ignore_resize_log=False):
+                 output_folder="./convert/", resize_log="./resize.log", resized_log="./resized.log",sort_size=False,ignore_resized_log=False,ignore_resize_log=False,custom_exec="",custom_ffprobe=""):
         """
         class to convert huge amount of video files to same size,codec and other parameters specified below
 
@@ -64,6 +64,12 @@ class converter:
             self.ffmpeg_executable = "ffmpeg"
             if "arm" not in str(platform.machine()) and codec == "h264_omx":
                 self.codec = "h264"
+        if custom_exec != "":
+            self.ffmpeg_executable=custom_exec
+        if custom_ffprobe != "":
+            self.ffprobe_executable=custom_exec
+        else:
+            self.ffprobe_executable="ffprobe"
         # obligate de folder address ends with the so separator
         if str(self.input_folder[-1]) != self.so_folder_separator:
             self.input_folder = self.input_folder + self.so_folder_separator
@@ -219,25 +225,23 @@ class converter:
                 retorno["dirs"].append(entry)
         return retorno
 
-    @staticmethod
-    def get_video_time(File: os.DirEntry):
+    def get_video_time(self,File: os.DirEntry):
         """
             get the time in seconds from the select file
         :param File: media file that will be analyzed
         :return: time in seconds,return a float value,so it is very precize
         """
-        check_dim = "ffprobe -v quiet -show_entries format=duration -of default=noprint_wrappers=1:nokey=1".split(
+        check_dim = self.ffprobe_executable+" -v quiet -show_entries format=duration -of default=noprint_wrappers=1:nokey=1".split(
             " ")
         check_dim.append(File.path)
-        dim = subprocess.run(check_dim, stdout=subprocess.PIPE)
+        dim = subprocess.run(check_dim, stdout=subprocess.PIPE, shell=True)
         if dim.returncode != 0:
             return "error", int(dim.returncode)
         dim = re.compile("\'(.*)\\\\").findall(str(dim.stdout))[0]
         # print(dim)
         return float(dim)
 
-    @staticmethod
-    def get_video_codec(File: os.DirEntry, stream: int = 0):
+    def get_video_codec(self,File: os.DirEntry, stream: int = 0):
         """
             get the video codec from the media file
         :param File: media file that will be analyzed
@@ -245,56 +249,53 @@ class converter:
         :return: the codec from the video selected
         """
         check_dim = str(
-            "ffprobe -v quiet -select_streams v:" + str(
+            self.ffprobe_executable+" -v quiet -select_streams v:" + str(
                 stream) + " -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1").split(
             " ")
         check_dim.append(File.path)
-        dim = subprocess.run(check_dim, stdout=subprocess.PIPE)
+        dim = subprocess.run(check_dim, stdout=subprocess.PIPE, shell=True)
         if dim.returncode != 0:
             return "error", int(dim.returncode)
         dim = re.compile("\'(.*)\\\\").findall(str(dim.stdout))[0]
         # print(dim)
         return str(dim)
 
-    @staticmethod
-    def get_audio_codec(File: os.DirEntry, stream: int = 0):
+    def get_audio_codec(self,File: os.DirEntry, stream: int = 0):
         """
             get the audio codec from selected stream in file
         :param File:media file that will be analyzed
         :param stream: stream wich will be extracted
         :return: the codec from the video selected
         """
-        check_dim = str("ffprobe -v quiet -select_streams a:" + str(
+        check_dim = str(self.ffprobe_executable+" -v quiet -select_streams a:" + str(
             stream) + " -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1").split(
             " ")
         check_dim.append(File.path)
-        dim = subprocess.run(check_dim, stdout=subprocess.PIPE)
+        dim = subprocess.run(check_dim, stdout=subprocess.PIPE, shell=True)
         if dim.returncode != 0:
             return "error", int(dim.returncode)
         dim = re.compile("\'(.*)\\\\").findall(str(dim.stdout))[0]
         # print(dim)
         return str(dim)
 
-    @staticmethod
-    def get_subtitle_codec(File: os.DirEntry, stream: int = 0):
+    def get_subtitle_codec(self,File: os.DirEntry, stream: int = 0):
         """
             get the subtitle codec from selected stream in file
         :param File:media file that will be analyzed
         :param stream: stream wich will be extracted
         :return: the codec from the subtitle selected
         """
-        check_dim = str("ffprobe -v quiet -select_streams s:" + str(
+        check_dim = str(self.ffprobe_executable+" -v quiet -select_streams s:" + str(
             stream) + " -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1").split(" ")
         check_dim.append(File.path)
-        dim = subprocess.run(check_dim, stdout=subprocess.PIPE)
+        dim = subprocess.run(check_dim, stdout=subprocess.PIPE, shell=True)
         if dim.returncode != 0:
             return "error", int(dim.returncode)
         dim = re.compile("\'(.*)\\\\").findall(str(dim.stdout))[0]
         # print(dim)
         return str(dim)
 
-    @staticmethod
-    def get_resolution(File: os.DirEntry, stream: int = 0):
+    def get_resolution(self,File: os.DirEntry, stream: int = 0):
         """
             get the resolution from selected stream in file
         :param File:media file that will be analyzed
@@ -302,11 +303,11 @@ class converter:
         :return: the resolution from the subtitle selected in an dict {x:,y:}
         """
         check_dim = str(
-            "ffprobe -v quiet -select_streams v:" + str(
+            self.ffprobe_executable+" -v quiet -select_streams v:" + str(
                 stream) + " -show_entries stream=width,height -of csv=p=0").split(
             " ")
         check_dim.append(File.path)
-        dim = subprocess.run(check_dim, stdout=subprocess.PIPE)
+        dim = subprocess.run(check_dim, stdout=subprocess.PIPE, shell=True)
         if dim.returncode != 0:
             return "error", int(dim.returncode)
         dim = re.compile("(\d+,\d+)").findall(str(dim.stdout))[0].split(",")
@@ -314,8 +315,7 @@ class converter:
         dim = {"x": int(dim[0]), "y": int(dim[1])}
         return dim
 
-    @staticmethod
-    def get_fps(File: os.DirEntry, stream: int = 0):
+    def get_fps(self,File: os.DirEntry, stream: int = 0):
         """
             get the resolution from selected stream in file
         :param File:media file that will be analyzed
@@ -323,26 +323,25 @@ class converter:
         :return: the resolution from the subtitle selected in an dict {x:,y:}
         """
         check_fps = str(
-            "ffprobe -v quiet -select_streams v:" + str(
+            self.ffprobe_executable+" -v quiet -select_streams v:" + str(
                 stream) + " -of default=noprint_wrappers=1:nokey=1 -show_entries stream=r_frame_rate").split(
             " ")
         check_fps.append(File.path)
-        dim = subprocess.run(check_fps, stdout=subprocess.PIPE)
+        dim = subprocess.run(check_fps, stdout=subprocess.PIPE, shell=True)
         if dim.returncode != 0:
             return "error", int(dim.returncode)
         dim = re.compile("(\d+/\d+)").findall(str(dim.stdout))[0].split("/")
         dim = int(dim[0]) / int(dim[1])
         return dim
     
-    @staticmethod
-    def get_aspet_ratio(File:os.DirEntry,stream:int=0):
-        "ffprobe -v error -select_streams v:0 -show_entries stream=display_aspect_ratio -of json=c=1"
+    def get_aspet_ratio(self,File:os.DirEntry,stream:int=0):
+        self.ffprobe_executable+" -v error -select_streams v:0 -show_entries stream=display_aspect_ratio -of json=c=1"
         check_dim = str(
-            "ffprobe -v quiet -select_streams v:" + str(
+            self.ffprobe_executable+" -v quiet -select_streams v:" + str(
                 stream) + " -show_entries stream=display_aspect_ratio -of csv=p=0").split(
             " ")
         check_dim.append(File.path)
-        dim = subprocess.run(check_dim, stdout=subprocess.PIPE)
+        dim = subprocess.run(check_dim, stdout=subprocess.PIPE, shell=True)
         if dim.returncode != 0:
             return "error", int(dim.returncode)
         dim = re.compile("(\d+:\d+)").findall(str(dim.stdout))[0].split(":")
@@ -374,8 +373,7 @@ class converter:
             result.append(aditional)
         return result
 
-    @staticmethod
-    def compare_resolution(File: os.DirEntry, width: int, height: int, stream: int = 0):
+    def compare_resolution(self,File: os.DirEntry, width: int, height: int, stream: int = 0):
         """
             verify if the file resolution is smaller than the parsed values
         :param File:
@@ -384,11 +382,11 @@ class converter:
         :return:
         """
         check_dim = str(
-            "ffprobe -v quiet -select_streams v:" + str(
+            self.ffprobe_executable+" -v quiet -select_streams v:" + str(
                 stream) + " -show_entries stream=width,height -of csv=p=0").split(
             " ")
         check_dim.append(File.path)
-        dim = subprocess.run(check_dim, stdout=subprocess.PIPE)
+        dim = subprocess.run(check_dim, stdout=subprocess.PIPE, shell=True)
         if dim.returncode != 0:
             return "error", int(dim.returncode)
         dim = re.compile("(\d+,\d+)").findall(str(dim.stdout))[0].split(",")
@@ -398,8 +396,7 @@ class converter:
         else:
             return False
 
-    @staticmethod
-    def compare_fps(File: os.DirEntry, fps, stream: int = 0):
+    def compare_fps(self,File: os.DirEntry, fps, stream: int = 0):
         """
 
         :param File:
@@ -407,11 +404,11 @@ class converter:
         :return:
         """
         check_fps = str(
-            "ffprobe -v quiet -select_streams v:" + str(
+            self.ffprobe_executable+" -v quiet -select_streams v:" + str(
                 stream) + " -of default=noprint_wrappers=1:nokey=1 -show_entries stream=r_frame_rate").split(
             " ")
         check_fps.append(File.path)
-        dim = subprocess.run(check_fps, stdout=subprocess.PIPE)
+        dim = subprocess.run(check_fps, stdout=subprocess.PIPE, shell=True)
         if dim.returncode != 0:
             return "error", int(dim.returncode)
         dim = re.compile("(\d+/\d+)").findall(str(dim.stdout))[0].split("/")
@@ -579,7 +576,7 @@ class converter:
         file.close()
 
     def create_command(self, File: os.DirEntry, array=False, resize=False, current_dir=False, no_hierarchy=False,
-                       force_change_fps=False, debug=False,output_name="",force_resize=False):
+                       force_change_fps=False, debug=False,output_name="",force_resize=False,not_overwrite=False):
         """
 
         :param File:
@@ -617,7 +614,11 @@ class converter:
                     pass
         if converted:
             return ""
-        command = [self.ffmpeg_executable, "-y"]
+        command = [self.ffmpeg_executable]
+        if not not_overwrite:
+            command.append("-y")
+        else:
+            command.append("-n")
         if self.hwaccel != "":
             command.append("-hwaccel")
             command.append(self.hwaccel)
@@ -791,7 +792,7 @@ class converter:
 
     def convert_video(self, File: os.DirEntry, resize=False, remove=False, process=False, current_dir=False,
                       no_hierarchy=False,
-                      force_change_fps=False, debug=False, working_log="./working.log",output_name="", force_resize=False):
+                      force_change_fps=False, debug=False, working_log="./working.log",output_name="", force_resize=False,not_overwrite=False):
         """
 
         :param File:
@@ -818,7 +819,7 @@ class converter:
         except:
             pass
         command = self.create_command(File, array=True, resize=resize, current_dir=current_dir, debug=debug,
-                                      force_change_fps=force_change_fps, no_hierarchy=no_hierarchy,output_name=output_name,force_resize=force_resize)
+                                      force_change_fps=force_change_fps, no_hierarchy=no_hierarchy,output_name=output_name,force_resize=force_resize,not_overwrite=not_overwrite)
         if command == "" or (name_data["converted"] and not debug):
             return 0
 
@@ -826,26 +827,27 @@ class converter:
             if debug:
                 print(command)
             os.chdir(self.output_folder)
-            result = subprocess.run(command, stdout=subprocess.PIPE)
+            result = subprocess.run(command, stdout=subprocess.PIPE, shell=True)
             if result.returncode == 0 and output_name != "":
                 if debug:
                     print("selected output file ,done with success")
                 if not self.ignore_resized_log:
-                    log_file = open(self.resized_log, "a")
-                    while self.line_in_file(self.resized_log,str(output_name + "\n")): 
+                    while self.line_in_file(name_data["log_file_name"].path,str(output_name + "\n")): 
+                        log_file = open(name_data["log_file_name"].path, "a")
                         log_file.write(output_name + "\n")
-                    log_file.close()
+                        log_file.close()
             elif resize and result.returncode == 0 and output_name != "":
                 if debug:
                     print("selected output file resize ,done with success")
                 if not self.ignore_resized_log:
-                    log_file = open(self.resized_log, "a")
-                    while self.line_in_file(self.resized_log,str(output_name + "\n")): 
+                    while self.line_in_file(name_data["log_file_name"].path,str(output_name + "\n")): 
+                        log_file = open(name_data["log_file_name"].path, "a+")
                         log_file.write(output_name + "\n")
-                    log_file.close()
+                        log_file.close()
             elif resize and result.returncode == 0:
                 if debug:
                     print("automatic output file ,done with success")
+                    '''
                 # log_file=open(working_log,"a")
                 # tmp_log_file=open(str(working_log)+".tmp","a")
                 # for line in log_file.readlines():
@@ -857,13 +859,14 @@ class converter:
                 # tmp_log_file.close()
                 # shutil.move(str(working_log)+".tmp",working_log)
                 # os.rename(name_data["new_file_name"]+".tmp",name_data["new_file_name"])
+                '''
                 if debug:
                     print(name_data["log_file_name"].path)
                 if not self.ignore_resized_log:
-                    log_file = open(name_data["log_file_name"].path, "w+")
                     while self.line_in_file(name_data["log_file_name"],str(name_data["new_file_name"] + "\n")): 
+                        log_file = open(name_data["log_file_name"].path, "a+")
                         log_file.write(name_data["new_file_name"] + "\n")
-                    log_file.close()
+                        log_file.close()
             if remove and result.returncode == 0:
                 if debug:
                     print("removing original file")
@@ -911,7 +914,7 @@ class converter:
             return retorno
 
     def convert_all_files_sequential(self, resize=False, remove=False, current_dir=False, no_hierarchy=False,
-                                     force_change_fps=False, debug=False):
+                                     force_change_fps=False, debug=False,not_overwrite=False):
         """
 
         :param resize:
@@ -925,7 +928,7 @@ class converter:
         if self.files != []:
             for file in self.files:
                 tmp = self.convert_video(file, resize=resize, remove=remove, process=False, current_dir=current_dir,
-                                         no_hierarchy=no_hierarchy, force_change_fps=force_change_fps, debug=debug)
+                                         no_hierarchy=no_hierarchy, force_change_fps=force_change_fps, debug=debug,not_overwrite=not_overwrite)
                 if tmp not in self.results.keys():
                     self.results[tmp] = []
                 self.results[tmp].append(file)
@@ -979,9 +982,9 @@ class converter_identifier(converter):
         :param File:
         :return:
         """
-        command = 'ffprobe -i "{}" -show_streams -of json'.format(File)
+        command = self.ffprobe_executable+' -i "{}" -show_streams -of json'.format(File)
         args = self.shlex.split(command)
-        p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        p = subprocess.Popen(args, stdout=subprocess.PIPE, shell=True, stderr=subprocess.PIPE,
                              universal_newlines=True)
         out, err = p.communicate()
 
@@ -1172,7 +1175,7 @@ class converter_identifier(converter):
         if not process:
             # print(command)
             # os.chdir(self.output_folder)
-            result = subprocess.run(command, stdout=subprocess.PIPE)
+            result = subprocess.run(command, stdout=subprocess.PIPE, shell=True)
             # result = subprocess.Popen(command, stdout = subprocess.PIPE,stderr = subprocess.STDOUT,universal_newlines=True)
             # line_nun=0
 
