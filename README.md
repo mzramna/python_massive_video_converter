@@ -44,3 +44,6 @@ original class:`conversor=converter(resolution=720,codec="hevc_nvenc",fps=24,inp
 identifier class`conversor=converter_identifier(imdb_api_key=tmdb_API_KEY,resolution=720,codec="hevc_nvenc",fps=24,input_folder=".\\" ,output_folder=".\\convert",preset="slow",hwaccel="cuda",threads=4)`
 
 if the algorithim cannot identify the media by the filename,it will asks you by the right name of the media,it will not go on until you inform that
+
+
+extra documentation:[reddit post](https://www.reddit.com/r/DataHoarder/comments/orxrxj/a_python_script_to_automaticaly_convert_and/)
