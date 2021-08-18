@@ -225,16 +225,21 @@ class converter:
                 retorno["dirs"].append(entry)
         return retorno
 
-    def get_video_time(self,File: os.DirEntry):
+    def get_video_time(self,File):
         """
             get the time in seconds from the select file
         :param File: media file that will be analyzed
         :return: time in seconds,return a float value,so it is very precize
         """
-        check_dim = self.ffprobe_executable+" -v quiet -show_entries format=duration -of default=noprint_wrappers=1:nokey=1".split(
+        check_dim = str(str(self.ffprobe_executable)+" -v quiet -show_entries format=duration -of default=noprint_wrappers=1:nokey=1").split(
             " ")
-        check_dim.append(File.path)
-        dim = subprocess.run(check_dim, stdout=subprocess.PIPE, shell=True)
+        if isinstance(File, str):
+            check_dim.append('"'+File+'"')
+        if isinstance(File, os.DirEntry):
+            check_dim.append('"'+str(File.path)+'"')
+        else:
+            return ""
+        dim = subprocess.run(' '.join(check_dim), stdout=subprocess.PIPE, shell=True)
         if dim.returncode != 0:
             return "error", int(dim.returncode)
         dim = re.compile("\'(.*)\\\\").findall(str(dim.stdout))[0]
@@ -249,11 +254,11 @@ class converter:
         :return: the codec from the video selected
         """
         check_dim = str(
-            self.ffprobe_executable+" -v quiet -select_streams v:" + str(
+            str(self.ffprobe_executable)+" -v quiet -select_streams v:" + str(
                 stream) + " -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1").split(
             " ")
-        check_dim.append(File.path)
-        dim = subprocess.run(check_dim, stdout=subprocess.PIPE, shell=True)
+        check_dim.append('"'+str(File.path)+'"')
+        dim = subprocess.run(' '.join(check_dim), stdout=subprocess.PIPE, shell=True)
         if dim.returncode != 0:
             return "error", int(dim.returncode)
         dim = re.compile("\'(.*)\\\\").findall(str(dim.stdout))[0]
@@ -267,11 +272,11 @@ class converter:
         :param stream: stream wich will be extracted
         :return: the codec from the video selected
         """
-        check_dim = str(self.ffprobe_executable+" -v quiet -select_streams a:" + str(
+        check_dim = str(str(self.ffprobe_executable)+" -v quiet -select_streams a:" + str(
             stream) + " -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1").split(
             " ")
-        check_dim.append(File.path)
-        dim = subprocess.run(check_dim, stdout=subprocess.PIPE, shell=True)
+        check_dim.append('"'+str(File.path)+'"')
+        dim = subprocess.run(' '.join(check_dim), stdout=subprocess.PIPE, shell=True)
         if dim.returncode != 0:
             return "error", int(dim.returncode)
         dim = re.compile("\'(.*)\\\\").findall(str(dim.stdout))[0]
@@ -285,10 +290,10 @@ class converter:
         :param stream: stream wich will be extracted
         :return: the codec from the subtitle selected
         """
-        check_dim = str(self.ffprobe_executable+" -v quiet -select_streams s:" + str(
+        check_dim = str(str(self.ffprobe_executable)+" -v quiet -select_streams s:" + str(
             stream) + " -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1").split(" ")
-        check_dim.append(File.path)
-        dim = subprocess.run(check_dim, stdout=subprocess.PIPE, shell=True)
+        check_dim.append('"'+str(File.path)+'"')
+        dim = subprocess.run(' '.join(check_dim), stdout=subprocess.PIPE, shell=True)
         if dim.returncode != 0:
             return "error", int(dim.returncode)
         dim = re.compile("\'(.*)\\\\").findall(str(dim.stdout))[0]
@@ -303,11 +308,12 @@ class converter:
         :return: the resolution from the subtitle selected in an dict {x:,y:}
         """
         check_dim = str(
-            self.ffprobe_executable+" -v quiet -select_streams v:" + str(
+            str(self.ffprobe_executable)+" -v quiet -select_streams v:" + str(
                 stream) + " -show_entries stream=width,height -of csv=p=0").split(
             " ")
-        check_dim.append(File.path)
-        dim = subprocess.run(check_dim, stdout=subprocess.PIPE, shell=True)
+        check_dim.append('"'+str(File.path)+'"')
+        
+        dim = subprocess.run(' '.join(check_dim), stdout=subprocess.PIPE, shell=True)
         if dim.returncode != 0:
             return "error", int(dim.returncode)
         dim = re.compile("(\d+,\d+)").findall(str(dim.stdout))[0].split(",")
@@ -323,11 +329,11 @@ class converter:
         :return: the resolution from the subtitle selected in an dict {x:,y:}
         """
         check_fps = str(
-            self.ffprobe_executable+" -v quiet -select_streams v:" + str(
+            str(self.ffprobe_executable)+" -v quiet -select_streams v:" + str(
                 stream) + " -of default=noprint_wrappers=1:nokey=1 -show_entries stream=r_frame_rate").split(
             " ")
-        check_fps.append(File.path)
-        dim = subprocess.run(check_fps, stdout=subprocess.PIPE, shell=True)
+        check_fps.append('"'+str(File.path)+'"')
+        dim = subprocess.run(' '.join(check_fps), stdout=subprocess.PIPE, shell=True)
         if dim.returncode != 0:
             return "error", int(dim.returncode)
         dim = re.compile("(\d+/\d+)").findall(str(dim.stdout))[0].split("/")
@@ -335,13 +341,14 @@ class converter:
         return dim
     
     def get_aspet_ratio(self,File:os.DirEntry,stream:int=0):
-        self.ffprobe_executable+" -v error -select_streams v:0 -show_entries stream=display_aspect_ratio -of json=c=1"
+        str(self.ffprobe_executable)+" -v error -select_streams v:0 -show_entries stream=display_aspect_ratio -of json=c=1"
         check_dim = str(
-            self.ffprobe_executable+" -v quiet -select_streams v:" + str(
+            str(self.ffprobe_executable)+" -v quiet -select_streams v:" + str(
                 stream) + " -show_entries stream=display_aspect_ratio -of csv=p=0").split(
             " ")
-        check_dim.append(File.path)
-        dim = subprocess.run(check_dim, stdout=subprocess.PIPE, shell=True)
+        check_dim.append('"'+str(File.path)+'"')
+        
+        dim = subprocess.run(' '.join(check_dim), stdout=subprocess.PIPE, shell=True)
         if dim.returncode != 0:
             return "error", int(dim.returncode)
         dim = re.compile("(\d+:\d+)").findall(str(dim.stdout))[0].split(":")
@@ -382,11 +389,12 @@ class converter:
         :return:
         """
         check_dim = str(
-            self.ffprobe_executable+" -v quiet -select_streams v:" + str(
+            str(self.ffprobe_executable)+" -v quiet -select_streams v:" + str(
                 stream) + " -show_entries stream=width,height -of csv=p=0").split(
             " ")
-        check_dim.append(File.path)
-        dim = subprocess.run(check_dim, stdout=subprocess.PIPE, shell=True)
+        check_dim.append('"'+str(File.path)+'"')
+        
+        dim = subprocess.run(' '.join(check_dim), stdout=subprocess.PIPE, shell=True)
         if dim.returncode != 0:
             return "error", int(dim.returncode)
         dim = re.compile("(\d+,\d+)").findall(str(dim.stdout))[0].split(",")
@@ -396,6 +404,17 @@ class converter:
         else:
             return False
 
+    def compare_if_file_already_converted_successfully(self,File1: os.DirEntry,File2:str):
+        if not os.path.exists(File2):
+            return False
+        elif self.get_video_time(File2) == "" :
+            return False
+        elif self.get_video_time(File1) != self.get_video_time(File2):
+            return False
+        else:
+            return True
+            
+
     def compare_fps(self,File: os.DirEntry, fps, stream: int = 0):
         """
 
@@ -404,11 +423,11 @@ class converter:
         :return:
         """
         check_fps = str(
-            self.ffprobe_executable+" -v quiet -select_streams v:" + str(
+            str(self.ffprobe_executable)+" -v quiet -select_streams v:" + str(
                 stream) + " -of default=noprint_wrappers=1:nokey=1 -show_entries stream=r_frame_rate").split(
             " ")
-        check_fps.append(File.path)
-        dim = subprocess.run(check_fps, stdout=subprocess.PIPE, shell=True)
+        check_fps.append('"'+str(File.path)+'"')
+        dim = subprocess.run(' '.join(check_fps), stdout=subprocess.PIPE, shell=True)
         if dim.returncode != 0:
             return "error", int(dim.returncode)
         dim = re.compile("(\d+/\d+)").findall(str(dim.stdout))[0].split("/")
@@ -622,7 +641,11 @@ class converter:
         if self.hwaccel != "":
             command.append("-hwaccel")
             command.append(self.hwaccel)
-        command = command + ["-hide_banner", "-loglevel", self.log_level, "-i", str(File.path)]
+        command = command + ["-hide_banner", "-loglevel", self.log_level, "-i"]
+        if array:
+            comand.append( str(File.path))
+        else:
+            command.append('"'+str(File.path)+'"')
         # subtitles_avaliable=self.find_files(name_data["file_name_no_extension"]+"*.srt")
         # if len(subtitles_avaliable)>0:
         #    for i in subtitles_avaliable:
@@ -766,7 +789,7 @@ class converter:
         compared_codec = self.get_video_codec(File)
         if isinstance(compared_codec, int):
             return ""
-        elif compared_codec == "mpeg4" and "h26" in self.codec:
+        elif compared_codec == "mpeg4" and "h265" in self.codec:
             command.append("-bsf:v")
             command.append("mpeg4_unpack_bframes")
         # command.append(str(name_data["new_file_name"])+".tmp")
@@ -776,15 +799,20 @@ class converter:
         #    for i in range(0,len(subtitles_avaliable)+1):
         #        command.append("-map")
         #        command.append(i)
-        if output_name=="":
-            command.append(str(name_data["new_file_name"]))
-        else:
-            command.append(str(output_name))
+        
         # print(command)
 
         if array:
+            if output_name=="":
+                command.append(str(name_data["new_file_name"]))
+            else:
+                command.append(str(output_name))
             return command
         else:
+            if output_name=="":
+                command.append('"'+str(name_data["new_file_name"])+'"')
+            else:
+                command.append('"'+str(output_name)+'"')
             retorno = ""
             for comand in command:
                 retorno += comand + " "
@@ -818,11 +846,12 @@ class converter:
             os.makedirs(name_data["folder_to_create"])
         except:
             pass
-        command = self.create_command(File, array=True, resize=resize, current_dir=current_dir, debug=debug,
+        command = self.create_command(File, array=False, resize=resize, current_dir=current_dir, debug=debug,
                                       force_change_fps=force_change_fps, no_hierarchy=no_hierarchy,output_name=output_name,force_resize=force_resize,not_overwrite=not_overwrite)
-        if command == "" or (name_data["converted"] and not debug):
+        if command == "" or (name_data["converted"] and not debug) :
             return 0
-
+        elif self.compare_if_file_already_converted_successfully(File,command[-1]):
+            return 0
         if not process:
             if debug:
                 print(command)
@@ -885,7 +914,7 @@ class converter:
                     except:
                         if "cannot overwrite original" not in self.results.keys():
                             self.results["cannot overwrite original"] = []
-                        self.results["cannot overwrite original"].append(File.path)
+                        self.results["cannot overwrite original"].append(str(File.path))
                 else:
                     try:
                         if debug:
@@ -895,7 +924,7 @@ class converter:
                     except:
                         if "cannot delete original" not in self.results.keys():
                             self.results["cannot delete original"] = []
-                        self.results["cannot delete original"].append(File.path)
+                        self.results["cannot delete original"].append(str(File.path))
             elif result.returncode == 1 and name_data["new_file_name"] != "":
                 if debug:
                     print("selected output file ,error")
@@ -945,9 +974,9 @@ class converter_identifier(converter):
     """
     until second order this just works with movies
     """
-    import tmdbsimple as tmdb
+    #import tmdbsimple as tmdb
     import shlex
-    from imdbpie import Imdb
+    #from imdbpie import Imdb
     from json import JSONDecoder
     import urllib
     def __init__(self, imdb_api_key, extension_convert: str = "mkv", resolution: int = 480, codec: str = "h264_omx",
@@ -982,7 +1011,7 @@ class converter_identifier(converter):
         :param File:
         :return:
         """
-        command = self.ffprobe_executable+' -i "{}" -show_streams -of json'.format(File)
+        command = str(self.ffprobe_executable)+' -i "{}" -show_streams -of json'.format(File)
         args = self.shlex.split(command)
         p = subprocess.Popen(args, stdout=subprocess.PIPE, shell=True, stderr=subprocess.PIPE,
                              universal_newlines=True)
@@ -1128,9 +1157,9 @@ class converter_identifier(converter):
             pass
 
         if output_name == "":
-            command.append(str(output_file))
+            command.append('"'+str(output_file)+'"')
         else:
-            command.append(str(output_name))
+            command.append('"'+str(output_name)+'"')
         if array:
             return command
         else:
@@ -1171,11 +1200,11 @@ class converter_identifier(converter):
                                       force_change_fps=force_change_fps, no_hierarchy=no_hierarchy,output_name=output_name)
         if command == "" or (name_data["converted"] and not debug):
             return 0
-        print(command)
+        #print(command)
         if not process:
             # print(command)
             # os.chdir(self.output_folder)
-            result = subprocess.run(command, stdout=subprocess.PIPE, shell=True)
+            result = subprocess.run(' '.join(command), stdout=subprocess.PIPE, shell=True)
             # result = subprocess.Popen(command, stdout = subprocess.PIPE,stderr = subprocess.STDOUT,universal_newlines=True)
             # line_nun=0
 
